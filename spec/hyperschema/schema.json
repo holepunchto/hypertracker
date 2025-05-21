@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "schema": [
+    {
+      "name": "swarm",
+      "namespace": "peer-tracker",
+      "compact": false,
+      "flagsPosition": 1,
+      "fields": [
+        {
+          "name": "publicKey",
+          "required": true,
+          "type": "fixed32",
+          "version": 1
+        },
+        {
+          "name": "bumped",
+          "type": "uint",
+          "version": 1
+        },
+        {
+          "name": "updated",
+          "type": "uint",
+          "version": 1
+        },
+        {
+          "name": "signature",
+          "type": "fixed64",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "name": "announce",
+      "namespace": "peer-tracker",
+      "compact": false,
+      "flagsPosition": 0,
+      "fields": [
+        {
+          "name": "bump",
+          "type": "uint",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "name": "announce-to-swarm",
+      "namespace": "peer-tracker",
+      "compact": false,
+      "flagsPosition": -1,
+      "fields": [
+        {
+          "name": "publicKey",
+          "required": true,
+          "type": "fixed32",
+          "version": 1
+        },
+        {
+          "name": "announce",
+          "required": true,
+          "type": "@peer-tracker/announce",
+          "version": 1
+        },
+        {
+          "name": "signature",
+          "required": true,
+          "type": "fixed64",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "name": "subscribe-to-swarm",
+      "namespace": "peer-tracker",
+      "compact": false,
+      "flagsPosition": -1,
+      "fields": [
+        {
+          "name": "publicKey",
+          "required": true,
+          "type": "fixed32",
+          "version": 1
+        },
+        {
+          "name": "since",
+          "required": true,
+          "type": "uint",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "name": "unsubscribe-to-swarm",
+      "namespace": "peer-tracker",
+      "compact": false,
+      "flagsPosition": -1,
+      "fields": [
+        {
+          "name": "publicKey",
+          "required": true,
+          "type": "fixed32",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "name": "bump-from-swarm",
+      "namespace": "peer-tracker",
+      "compact": false,
+      "flagsPosition": -1,
+      "fields": [
+        {
+          "name": "publicKey",
+          "required": true,
+          "type": "fixed32",
+          "version": 1
+        },
+        {
+          "name": "bumped",
+          "required": true,
+          "type": "uint",
+          "version": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "hyperdiscovery",
+  "version": "0.0.0",
+  "description": "Peer discovery powered by HyperDHT",
+  "main": "index.js",
+  "dependencies": {
+    "hypercore-crypto": "^3.6.0",
+    "hyperdb": "^4.13.1",
+    "protomux": "^3.10.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/holepunchto/hyperdiscovery.git"
+  },
+  "scripts": {
+    "test": "standard"
+  },
+  "author": "Holepunch Inc.",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/holepunchto/hyperdiscovery/issues"
+  },
+  "homepage": "https://github.com/holepunchto/hyperdiscovery",
+  "devDependencies": {
+    "standard": "^17.1.2"
+  }
+}

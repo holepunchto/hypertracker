@@ -1,0 +1,32 @@
+{
+  "version": 0,
+  "offset": 0,
+  "schema": [
+    {
+      "name": "swarms",
+      "namespace": "peer-tracker",
+      "id": 0,
+      "type": 1,
+      "indexes": [
+        "@peer-tracker/swarms-by-updated"
+      ],
+      "schema": "@peer-tracker/swarm",
+      "derived": false,
+      "key": [
+        "publicKey"
+      ],
+      "trigger": null
+    },
+    {
+      "name": "swarms-by-updated",
+      "namespace": "peer-tracker",
+      "id": 1,
+      "type": 2,
+      "collection": "@peer-tracker/swarms",
+      "unique": true,
+      "key": [
+        "updated"
+      ]
+    }
+  ]
+}
