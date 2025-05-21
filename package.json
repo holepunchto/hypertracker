@@ -1,5 +1,5 @@
 {
-  "name": "hyperdiscovery",
+  "name": "@holepunchto/hyperdiscovery",
   "version": "0.0.0",
   "description": "Peer discovery powered by HyperDHT",
   "main": "index.js",
