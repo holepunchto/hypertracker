@@ -3,7 +3,7 @@
   "schema": [
     {
       "name": "swarm",
-      "namespace": "peer-tracker",
+      "namespace": "hyperdiscovery",
       "compact": false,
       "flagsPosition": 1,
       "fields": [
@@ -32,7 +32,7 @@
     },
     {
       "name": "announce",
-      "namespace": "peer-tracker",
+      "namespace": "hyperdiscovery",
       "compact": false,
       "flagsPosition": 0,
       "fields": [
@@ -45,7 +45,7 @@
     },
     {
       "name": "announce-to-swarm",
-      "namespace": "peer-tracker",
+      "namespace": "hyperdiscovery",
       "compact": false,
       "flagsPosition": -1,
       "fields": [
@@ -58,7 +58,7 @@
         {
           "name": "announce",
           "required": true,
-          "type": "@peer-tracker/announce",
+          "type": "@hyperdiscovery/announce",
           "version": 1
         },
         {
@@ -71,7 +71,7 @@
     },
     {
       "name": "subscribe-to-swarm",
-      "namespace": "peer-tracker",
+      "namespace": "hyperdiscovery",
       "compact": false,
       "flagsPosition": -1,
       "fields": [
@@ -91,7 +91,7 @@
     },
     {
       "name": "unsubscribe-to-swarm",
-      "namespace": "peer-tracker",
+      "namespace": "hyperdiscovery",
       "compact": false,
       "flagsPosition": -1,
       "fields": [
@@ -105,7 +105,7 @@
     },
     {
       "name": "bump-from-swarm",
-      "namespace": "peer-tracker",
+      "namespace": "hyperdiscovery",
       "compact": false,
       "flagsPosition": -1,
       "fields": [

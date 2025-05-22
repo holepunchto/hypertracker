@@ -10,7 +10,7 @@ const VERSION = 1
 // eslint-disable-next-line no-unused-vars
 let version = VERSION
 
-// @peer-tracker/swarm
+// @hyperdiscovery/swarm
 const encoding0 = {
   preencode (state, m) {
     c.fixed32.preencode(state, m.publicKey)
@@ -46,7 +46,7 @@ const encoding0 = {
   }
 }
 
-// @peer-tracker/announce
+// @hyperdiscovery/announce
 const encoding1 = {
   preencode (state, m) {
     state.end++ // max flag is 1 so always one byte
@@ -69,10 +69,10 @@ const encoding1 = {
   }
 }
 
-// @peer-tracker/announce-to-swarm.announce
+// @hyperdiscovery/announce-to-swarm.announce
 const encoding2_1 = c.frame(encoding1)
 
-// @peer-tracker/announce-to-swarm
+// @hyperdiscovery/announce-to-swarm
 const encoding2 = {
   preencode (state, m) {
     c.fixed32.preencode(state, m.publicKey)
@@ -97,7 +97,7 @@ const encoding2 = {
   }
 }
 
-// @peer-tracker/subscribe-to-swarm
+// @hyperdiscovery/subscribe-to-swarm
 const encoding3 = {
   preencode (state, m) {
     c.fixed32.preencode(state, m.publicKey)
@@ -118,7 +118,7 @@ const encoding3 = {
   }
 }
 
-// @peer-tracker/unsubscribe-to-swarm
+// @hyperdiscovery/unsubscribe-to-swarm
 const encoding4 = {
   preencode (state, m) {
     c.fixed32.preencode(state, m.publicKey)
@@ -135,7 +135,7 @@ const encoding4 = {
   }
 }
 
-// @peer-tracker/bump-from-swarm
+// @hyperdiscovery/bump-from-swarm
 const encoding5 = {
   preencode (state, m) {
     c.fixed32.preencode(state, m.publicKey)
@@ -178,12 +178,12 @@ function getEnum (name) {
 
 function getEncoding (name) {
   switch (name) {
-    case '@peer-tracker/swarm': return encoding0
-    case '@peer-tracker/announce': return encoding1
-    case '@peer-tracker/announce-to-swarm': return encoding2
-    case '@peer-tracker/subscribe-to-swarm': return encoding3
-    case '@peer-tracker/unsubscribe-to-swarm': return encoding4
-    case '@peer-tracker/bump-from-swarm': return encoding5
+    case '@hyperdiscovery/swarm': return encoding0
+    case '@hyperdiscovery/announce': return encoding1
+    case '@hyperdiscovery/announce-to-swarm': return encoding2
+    case '@hyperdiscovery/subscribe-to-swarm': return encoding3
+    case '@hyperdiscovery/unsubscribe-to-swarm': return encoding4
+    case '@hyperdiscovery/bump-from-swarm': return encoding5
     default: throw new Error('Encoder not found ' + name)
   }
 }

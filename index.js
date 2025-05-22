@@ -1,21 +1,21 @@
 const { getEncoding } = require('./spec/hyperschema')
 const crypto = require('hypercore-crypto')
+const EventEmitter = require('events')
 const b4a = require('b4a')
 const Protomux = require('protomux')
 const c = require('compact-encoding')
 const HyperDB = require('hyperdb')
 
-const [NS_ANNOUNCE] = crypto.namespace('holepunchto/peer-tracker', 1)
+const [NS_ANNOUNCE] = crypto.namespace('holepunchto/hyperdiscovery', 1)
 const TIME_SLACK = 60_000
 
-const announce = getEncoding('@peer-tracker/announce')
+const AnnouncePayload = getEncoding('@hyperdiscovery/announce')
+const Announce = getEncoding('@hyperdiscovery/announce-to-swarm')
+const Subscribe = getEncoding('@hyperdiscovery/subscribe-to-swarm')
+const Unsubscribe = getEncoding('@hyperdiscovery/unsubscribe-to-swarm')
+const Bump = getEncoding('@hyperdiscovery/bump-from-swarm')
 
-const Announce = getEncoding('@peer-tracker/announce-to-swarm')
-const Subscribe = getEncoding('@peer-tracker/subscribe-to-swarm')
-const Unsubscribe = getEncoding('@peer-tracker/unsubscribe-to-swarm')
-const Bump = getEncoding('@peer-tracker/bump-from-swarm')
-
-class PeerTracker {
+class HyperDiscovery {
   constructor (storage) {
     this.db = HyperDB.rocks(storage, require('./spec/hyperdb'))
     this.subs = new Map()
@@ -37,7 +37,6 @@ class PeerTracker {
     if (!subs) return
     subs.delete(channel)
     if (!subs.size) this.subs.delete(id)
-    console.log('unsub', this.subs.size)
   }
 
   addStream (stream) {
@@ -45,12 +44,12 @@ class PeerTracker {
     const tracker = this
     const subs = new Set()
 
-    muxer.pair({ protocol: 'peer-tracker' }, onpair)
+    muxer.pair({ protocol: 'hyperdiscovery' }, onpair)
     onpair()
 
     function onpair () {
       const channel = muxer.createChannel({
-        protocol: 'peer-tracker',
+        protocol: 'hyperdiscovery',
         messages: [
           { encoding: Subscribe, onmessage: onsubscribe },
           { encoding: Unsubscribe, onmessage: onunsubscribe },
@@ -82,14 +81,13 @@ class PeerTracker {
       }
 
       function onannounce (m) {
-        console.log('ann')
         return tracker.announce(m, channel)
       }
     }
   }
 
   async lookup (publicKey) {
-    const v = await this.db.get('@peer-tracker/swarms', { publicKey })
+    const v = await this.db.get('@hyperdiscovery/swarms', { publicKey })
     return v
   }
 
@@ -97,17 +95,17 @@ class PeerTracker {
     const state = { buffer: null, start: 0, end: 0 }
 
     c.fixed32.preencode(state, NS_ANNOUNCE)
-    announce.preencode(state, m.announce)
+    AnnouncePayload.preencode(state, m.announce)
 
     state.buffer = b4a.allocUnsafe(state.end)
 
     c.fixed32.encode(state, NS_ANNOUNCE)
-    announce.encode(state, m.announce)
+    AnnouncePayload.encode(state, m.announce)
 
     if ((Date.now() + TIME_SLACK) > m.announce.bumped) return false
     if (!crypto.verify(state.buffer, m.signature, m.publicKey)) return false
 
-    const v = await this.db.get('@peer-tracker/swarms', m.publicKey)
+    const v = await this.db.get('@hyperdiscovery/swarms', m.publicKey)
     if (v && v.bumped >= m.announce.bump) return false
 
     const doc = {
@@ -117,7 +115,7 @@ class PeerTracker {
       signature: m.signature
     }
 
-    await this.db.insert('@peer-tracker/swarms', doc)
+    await this.db.insert('@hyperdiscovery/swarms', doc)
     await this.db.flush()
 
     const subs = this.subs.get(b4a.toString(m.publicKey, 'hex'))
@@ -133,14 +131,16 @@ class PeerTracker {
   }
 }
 
-class PeerTrackerClient {
+class HyperDiscoveryClient extends EventEmitter {
   constructor (stream) {
+    super()
+
     this.stream = stream
     this.muxer = getMuxer(stream)
 
     this.channel = this.muxer.createChannel({
       userData: this,
-      protocol: 'peer-tracker',
+      protocol: 'hyperdiscovery',
       messages: [
         { encoding: Subscribe, onmessage: unsupported },
         { encoding: Unsubscribe, onmessage: unsupported },
@@ -150,6 +150,10 @@ class PeerTrackerClient {
     })
 
     this.channel.open()
+  }
+
+  _onbump (bump) {
+    this.emit('announce', bump)
   }
 
   subscribe (publicKey, { since = 0 } = {}) {
@@ -170,12 +174,12 @@ class PeerTrackerClient {
     const state = { buffer: null, start: 0, end: 0 }
 
     c.fixed32.preencode(state, NS_ANNOUNCE)
-    announce.preencode(state, ann)
+    AnnouncePayload.preencode(state, ann)
 
     state.buffer = b4a.allocUnsafe(state.end)
 
     c.fixed32.encode(state, NS_ANNOUNCE)
-    announce.encode(state, ann)
+    AnnouncePayload.encode(state, ann)
 
     const signature = crypto.sign(state.buffer, keyPair.secretKey)
     const m = { publicKey: keyPair.publicKey, announce: ann, signature }
@@ -184,37 +188,7 @@ class PeerTrackerClient {
   }
 }
 
-main()
-
-async function main () {
-  const DHT = require('hyperdht')
-  const testnet = await require('hyperdht/testnet')()
-  const dht = new DHT({ bootstrap: testnet.bootstrap })
-
-  const server = dht.createServer()
-  await server.listen()
-
-  server.on('connection', c => {
-    s.addStream(c)
-  })
-
-  const s = new PeerTracker('/tmp/peer-tracker')
-  const p1 = new PeerTrackerClient(dht.connect(server.address().publicKey))
-  const p2 = new PeerTrackerClient(dht.connect(server.address().publicKey))
-
-  const k = crypto.keyPair()
-
-  p1.subscribe(k.publicKey)
-
-  // await new Promise(r => setTimeout(r, 1000))
-
-  p2.announce(k)
-
-  // p1.channel.close()
-
-  // await s.announce(c.decode(Announce, b))
-  // console.log(await s.lookup(k.publicKey))
-}
+module.exports = { HyperDiscovery, HyperDiscoveryClient }
 
 function getMuxer (stream) {
   if (Protomux.isProtomux(stream)) return stream
@@ -224,8 +198,8 @@ function getMuxer (stream) {
   return mux
 }
 
-function onbump (v) {
-  console.log('onbump', v)
+function onbump (bump, channel) {
+  channel.userData._onbump(bump)
 }
 
 function unsupported () {

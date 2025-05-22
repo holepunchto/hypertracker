@@ -4,13 +4,13 @@
   "schema": [
     {
       "name": "swarms",
-      "namespace": "peer-tracker",
+      "namespace": "hyperdiscovery",
       "id": 0,
       "type": 1,
       "indexes": [
-        "@peer-tracker/swarms-by-updated"
+        "@hyperdiscovery/swarms-by-updated"
       ],
-      "schema": "@peer-tracker/swarm",
+      "schema": "@hyperdiscovery/swarm",
       "derived": false,
       "key": [
         "publicKey"
@@ -19,10 +19,10 @@
     },
     {
       "name": "swarms-by-updated",
-      "namespace": "peer-tracker",
+      "namespace": "hyperdiscovery",
       "id": 1,
       "type": 2,
-      "collection": "@peer-tracker/swarms",
+      "collection": "@hyperdiscovery/swarms",
       "unique": true,
       "key": [
         "updated"

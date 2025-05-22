@@ -7,7 +7,7 @@ const DB_DIR = path.join(__dirname, './spec/hyperdb')
 
 const schema = Hyperschema.from(SCHEMA_DIR, { versioned: false })
 
-const trackerSchema = schema.namespace('peer-tracker')
+const trackerSchema = schema.namespace('hyperdiscovery')
 
 trackerSchema.register({
   name: 'swarm',
@@ -43,7 +43,7 @@ trackerSchema.register({
     required: true
   }, {
     name: 'announce',
-    type: '@peer-tracker/announce',
+    type: '@hyperdiscovery/announce',
     required: true
   }, {
     name: 'signature',
@@ -91,17 +91,17 @@ Hyperschema.toDisk(schema)
 
 const db = HyperDB.from(SCHEMA_DIR, DB_DIR)
 
-const trackerDb = db.namespace('peer-tracker')
+const trackerDb = db.namespace('hyperdiscovery')
 
 trackerDb.collections.register({
   name: 'swarms',
-  schema: '@peer-tracker/swarm',
+  schema: '@hyperdiscovery/swarm',
   key: ['publicKey']
 })
 
 trackerDb.indexes.register({
   name: 'swarms-by-updated',
-  collection: '@peer-tracker/swarms',
+  collection: '@hyperdiscovery/swarms',
   key: ['updated'],
   unique: true
 })

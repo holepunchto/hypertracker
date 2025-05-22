@@ -4,9 +4,16 @@
   "description": "Peer discovery powered by HyperDHT",
   "main": "index.js",
   "dependencies": {
+    "bare-events": "^2.5.4",
     "hypercore-crypto": "^3.6.0",
     "hyperdb": "^4.13.1",
     "protomux": "^3.10.1"
+  },
+  "imports": {
+    "events": {
+      "bare": "bare-events",
+      "default": "events"
+    }
   },
   "repository": {
     "type": "git",

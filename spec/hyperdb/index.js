@@ -4,7 +4,7 @@
 const { IndexEncoder, c } = require('hyperdb/runtime')
 const { version, getEncoding, setVersion } = require('./messages.js')
 
-// '@peer-tracker/swarms' collection key
+// '@hyperdiscovery/swarms' collection key
 const collection0_key = new IndexEncoder([
   IndexEncoder.BUFFER
 ], { prefix: 0 })
@@ -14,10 +14,10 @@ function collection0_indexify (record) {
   return a === undefined ? [] : [a]
 }
 
-// '@peer-tracker/swarms' value encoding
-const collection0_enc = getEncoding('@peer-tracker/swarm/hyperdb#0')
+// '@hyperdiscovery/swarms' value encoding
+const collection0_enc = getEncoding('@hyperdiscovery/swarm/hyperdb#0')
 
-// '@peer-tracker/swarms' reconstruction function
+// '@hyperdiscovery/swarms' reconstruction function
 function collection0_reconstruct (version, keyBuf, valueBuf) {
   const key = collection0_key.decode(keyBuf)
   setVersion(version)
@@ -25,7 +25,7 @@ function collection0_reconstruct (version, keyBuf, valueBuf) {
   record.publicKey = key[0]
   return record
 }
-// '@peer-tracker/swarms' key reconstruction function
+// '@hyperdiscovery/swarms' key reconstruction function
 function collection0_reconstruct_key (keyBuf) {
   const key = collection0_key.decode(keyBuf)
   return {
@@ -33,9 +33,9 @@ function collection0_reconstruct_key (keyBuf) {
   }
 }
 
-// '@peer-tracker/swarms'
+// '@hyperdiscovery/swarms'
 const collection0 = {
-  name: '@peer-tracker/swarms',
+  name: '@hyperdiscovery/swarms',
   id: 0,
   encodeKey (record) {
     const key = [record.publicKey]
@@ -59,7 +59,7 @@ const collection0 = {
   indexes: []
 }
 
-// '@peer-tracker/swarms-by-updated' collection key
+// '@hyperdiscovery/swarms-by-updated' collection key
 const index1_key = new IndexEncoder([
   IndexEncoder.UINT
 ], { prefix: 1 })
@@ -69,9 +69,9 @@ function index1_indexify (record) {
   return a === undefined ? [] : [a]
 }
 
-// '@peer-tracker/swarms-by-updated'
+// '@hyperdiscovery/swarms-by-updated'
 const index1 = {
-  name: '@peer-tracker/swarms-by-updated',
+  name: '@hyperdiscovery/swarms-by-updated',
   id: 1,
   encodeKey (record) {
     return index1_key.encode(index1_indexify(record))
@@ -106,14 +106,14 @@ module.exports = { version, collections, indexes, resolveCollection, resolveInde
 
 function resolveCollection (name) {
   switch (name) {
-    case '@peer-tracker/swarms': return collection0
+    case '@hyperdiscovery/swarms': return collection0
     default: return null
   }
 }
 
 function resolveIndex (name) {
   switch (name) {
-    case '@peer-tracker/swarms-by-updated': return index1
+    case '@hyperdiscovery/swarms-by-updated': return index1
     default: return null
   }
 }
