@@ -1,12 +1,13 @@
 const { getEncoding } = require('./spec/hyperschema')
 const crypto = require('hypercore-crypto')
-const EventEmitter = require('events')
+const HyperDHT = require('hyperdht')
+const ReadyResource = require('ready-resource')
 const b4a = require('b4a')
 const Protomux = require('protomux')
 const c = require('compact-encoding')
 const HyperDB = require('hyperdb')
 
-const [NS_ANNOUNCE] = crypto.namespace('holepunchto/hyperdiscovery', 1)
+const [NS_ANNOUNCE] = crypto.namespace('hyperdiscovery', 1)
 const TIME_SLACK = 60_000
 
 const AnnouncePayload = getEncoding('@hyperdiscovery/announce')
@@ -15,10 +16,66 @@ const Subscribe = getEncoding('@hyperdiscovery/subscribe-to-swarm')
 const Unsubscribe = getEncoding('@hyperdiscovery/unsubscribe-to-swarm')
 const Bump = getEncoding('@hyperdiscovery/bump-from-swarm')
 
-class HyperDiscovery {
-  constructor (storage) {
+class HyperDiscovery extends ReadyResource {
+  constructor (storage, { bootstrap, dht = new HyperDHT({ bootstrap }) } = {}) {
+    super()
+
+    this.dht = dht
     this.db = HyperDB.rocks(storage, require('./spec/hyperdb'))
     this.subs = new Map()
+
+    this._flushTimeout = null
+    this._flushing = null
+    this._server = null
+    this._manifest = null
+
+    this.ready().catch(noop)
+  }
+
+  get publicKey () {
+    return this._server && this._server.address().publicKey
+  }
+
+  async _open () {
+    await this._init()
+
+    this._flushBackground().catch(noop)
+
+    this._server = this.dht.createServer()
+    this._server.on('connection', this.addStream.bind(this))
+
+    await this._server.listen(crypto.keyPair(this._manifest.seed))
+  }
+
+  async _init () {
+    this._manifest = await this.db.get('@hyperdiscovery/manifest')
+    if (this._manifest) return
+
+    this._manifest = { version: 0, seed: crypto.randomBytes(32) }
+    await this.db.insert('@hyperdiscovery/manifest', this._manifest)
+    await this.db.flush()
+  }
+
+  async _close () {
+    if (this._flushTimeout) clearTimeout(this._flushTimeout)
+    if (this._flushing) await this._flushing
+    this._flushTimeout = null
+    if (this._server) await this._server.close()
+  }
+
+  async _flushBackground () {
+    while (!this.closing) {
+      await new Promise((resolve) => {
+        this._flushTimeout = setTimeout(120_000, resolve)
+      })
+
+      this._flushTimeout = null
+      if (this.closing) return
+
+      this._flushing = this.db.flush()
+      await this._flushing
+      this._flushing = null
+    }
   }
 
   _addSub (channel, id, since) {
@@ -116,7 +173,6 @@ class HyperDiscovery {
     }
 
     await this.db.insert('@hyperdiscovery/swarms', doc)
-    await this.db.flush()
 
     const subs = this.subs.get(b4a.toString(m.publicKey, 'hex'))
     if (subs) {
@@ -131,32 +187,131 @@ class HyperDiscovery {
   }
 }
 
-class HyperDiscoveryClient extends EventEmitter {
-  constructor (stream) {
+class HyperDiscoveryClient extends ReadyResource {
+  constructor (remotePublicKey, { bootstrap, dht = new HyperDHT({ bootstrap }) } = {}) {
     super()
 
-    this.stream = stream
-    this.muxer = getMuxer(stream)
+    this.remotePublicKey = remotePublicKey
+    this.dht = dht
+    this.connection = null
+    this.muxer = null
+    this.channel = null
+    this.suspended = false
+    this.connecting = false
 
-    this.channel = this.muxer.createChannel({
-      userData: this,
-      protocol: 'hyperdiscovery',
-      messages: [
-        { encoding: Subscribe, onmessage: unsupported },
-        { encoding: Unsubscribe, onmessage: unsupported },
-        { encoding: Announce, onmessage: unsupported },
-        { encoding: Bump, onmessage: onbump }
-      ]
-    })
+    this._retryTimeout = null
+    this._retryResolve = null
+    this._shouldReconnect = false
+  }
 
-    this.channel.open()
+  async suspend () {
+    this.suspended = true
+    this._clearRetry()
+    if (!this.connection) return
+    this.connection.destroy()
+    this.connecting = null
+    this.channel = null
+    this.muxer = null
+    await new Promise(resolve => this.connection.on('close', resolve))
+  }
+
+  resume () {
+    this.suspended = false
+    if (this._shouldReconnect && !this.closing) this._reconnect()
+  }
+
+  async _reconnect () {
+    if (this.connecting) return
+    this.connecting = true
+    this._shouldReconnect = true
+
+    let strikes = 0
+
+    while (!this.closing && !this.suspended) {
+      const connection = this.connection = this.dht.connect(this.remotePublicKey)
+
+      this.muxer = getMuxer(this.connection)
+      this.channel = this.muxer.createChannel({
+        userData: this,
+        protocol: 'hyperdiscovery',
+        messages: [
+          { encoding: Subscribe, onmessage: unsupported },
+          { encoding: Unsubscribe, onmessage: unsupported },
+          { encoding: Announce, onmessage: unsupported },
+          { encoding: Bump, onmessage: onbump }
+        ]
+      })
+
+      this.channel.open()
+
+      await new Promise((resolve) => {
+        connection.on('connect', done)
+        connection.on('error', done)
+
+        function done () {
+          connection.off('connect', done)
+          connection.off('error', done)
+          resolve()
+        }
+      })
+
+      if (this.closing || this.suspended) {
+        connection.on('error', noop)
+        connection.destroy()
+        break
+      }
+
+      if (!connection.destroyed && !connection.destroying) {
+        connection.on('close', this._reconnect.bind(this))
+        break
+      }
+
+      strikes++
+
+      await new Promise((resolve) => {
+        this._retryResolve = resolve
+        this._retryTimeout = setTimeout(resolve, strikes < 3 ? 5_000 : 15_000)
+      })
+
+      this._retryResolve = null
+      this._retryTimeout = null
+    }
+
+    this.connecting = false
+    if (this.closing || this.suspended) return
+
+    this.emit('connect')
+  }
+
+  _close () {
+    if (this.connection) this.connection.destroy()
+    this._clearRetry()
+  }
+
+  _clearRetry () {
+    if (!this._retryTimeout) return
+    clearTimeout(this._retryTimeout)
+    this._retryResolve()
+    this._retryResolve = null
+    this._retryTimeout = null
   }
 
   _onbump (bump) {
     this.emit('announce', bump)
   }
 
+  cork () {
+    if (!this.channel) this._reconnect()
+    this.channel.cork()
+  }
+
+  uncork () {
+    if (!this.channel) this._reconnect()
+    this.channel.uncork()
+  }
+
   subscribe (publicKey, { since = 0 } = {}) {
+    if (!this.channel) this._reconnect()
     this.channel.messages[0].send({
       publicKey,
       since
@@ -164,12 +319,15 @@ class HyperDiscoveryClient extends EventEmitter {
   }
 
   unsubscribe (publicKey) {
+    if (!this.channel) this._reconnect()
     this.channel.messages[1].send({
       publicKey
     })
   }
 
-  announce (keyPair, { bump = Date.now() } = {}) {
+  async announce (keyPair, { bump = Date.now() } = {}) {
+    if (!this.channel) this._reconnect()
+
     const ann = { bump }
     const state = { buffer: null, start: 0, end: 0 }
 
@@ -205,3 +363,5 @@ function onbump (bump, channel) {
 function unsupported () {
   throw new Error('Method not supported')
 }
+
+function noop () {}

@@ -4,41 +4,34 @@
 const { IndexEncoder, c } = require('hyperdb/runtime')
 const { version, getEncoding, setVersion } = require('./messages.js')
 
-// '@hyperdiscovery/swarms' collection key
+// '@hyperdiscovery/manifest' collection key
 const collection0_key = new IndexEncoder([
-  IndexEncoder.BUFFER
 ], { prefix: 0 })
 
 function collection0_indexify (record) {
-  const a = record.publicKey
-  return a === undefined ? [] : [a]
+  return []
 }
 
-// '@hyperdiscovery/swarms' value encoding
-const collection0_enc = getEncoding('@hyperdiscovery/swarm/hyperdb#0')
+// '@hyperdiscovery/manifest' value encoding
+const collection0_enc = getEncoding('@hyperdiscovery/manifest')
 
-// '@hyperdiscovery/swarms' reconstruction function
+// '@hyperdiscovery/manifest' reconstruction function
 function collection0_reconstruct (version, keyBuf, valueBuf) {
-  const key = collection0_key.decode(keyBuf)
   setVersion(version)
   const record = c.decode(collection0_enc, valueBuf)
-  record.publicKey = key[0]
   return record
 }
-// '@hyperdiscovery/swarms' key reconstruction function
+// '@hyperdiscovery/manifest' key reconstruction function
 function collection0_reconstruct_key (keyBuf) {
-  const key = collection0_key.decode(keyBuf)
-  return {
-    publicKey: key[0]
-  }
+  return {}
 }
 
-// '@hyperdiscovery/swarms'
+// '@hyperdiscovery/manifest'
 const collection0 = {
-  name: '@hyperdiscovery/swarms',
+  name: '@hyperdiscovery/manifest',
   id: 0,
   encodeKey (record) {
-    const key = [record.publicKey]
+    const key = []
     return collection0_key.encode(key)
   },
   encodeKeyRange ({ gt, lt, gte, lte } = {}) {
@@ -59,61 +52,118 @@ const collection0 = {
   indexes: []
 }
 
-// '@hyperdiscovery/swarms-by-updated' collection key
-const index1_key = new IndexEncoder([
-  IndexEncoder.UINT
+// '@hyperdiscovery/swarms' collection key
+const collection1_key = new IndexEncoder([
+  IndexEncoder.BUFFER
 ], { prefix: 1 })
 
-function index1_indexify (record) {
+function collection1_indexify (record) {
+  const a = record.publicKey
+  return a === undefined ? [] : [a]
+}
+
+// '@hyperdiscovery/swarms' value encoding
+const collection1_enc = getEncoding('@hyperdiscovery/swarm/hyperdb#1')
+
+// '@hyperdiscovery/swarms' reconstruction function
+function collection1_reconstruct (version, keyBuf, valueBuf) {
+  const key = collection1_key.decode(keyBuf)
+  setVersion(version)
+  const record = c.decode(collection1_enc, valueBuf)
+  record.publicKey = key[0]
+  return record
+}
+// '@hyperdiscovery/swarms' key reconstruction function
+function collection1_reconstruct_key (keyBuf) {
+  const key = collection1_key.decode(keyBuf)
+  return {
+    publicKey: key[0]
+  }
+}
+
+// '@hyperdiscovery/swarms'
+const collection1 = {
+  name: '@hyperdiscovery/swarms',
+  id: 1,
+  encodeKey (record) {
+    const key = [record.publicKey]
+    return collection1_key.encode(key)
+  },
+  encodeKeyRange ({ gt, lt, gte, lte } = {}) {
+    return collection1_key.encodeRange({
+      gt: gt ? collection1_indexify(gt) : null,
+      lt: lt ? collection1_indexify(lt) : null,
+      gte: gte ? collection1_indexify(gte) : null,
+      lte: lte ? collection1_indexify(lte) : null
+    })
+  },
+  encodeValue (version, record) {
+    setVersion(version)
+    return c.encode(collection1_enc, record)
+  },
+  trigger: null,
+  reconstruct: collection1_reconstruct,
+  reconstructKey: collection1_reconstruct_key,
+  indexes: []
+}
+
+// '@hyperdiscovery/swarms-by-updated' collection key
+const index2_key = new IndexEncoder([
+  IndexEncoder.UINT
+], { prefix: 2 })
+
+function index2_indexify (record) {
   const a = record.updated
   return a === undefined ? [] : [a]
 }
 
 // '@hyperdiscovery/swarms-by-updated'
-const index1 = {
+const index2 = {
   name: '@hyperdiscovery/swarms-by-updated',
-  id: 1,
+  id: 2,
   encodeKey (record) {
-    return index1_key.encode(index1_indexify(record))
+    return index2_key.encode(index2_indexify(record))
   },
   encodeKeyRange ({ gt, lt, gte, lte } = {}) {
-    return index1_key.encodeRange({
-      gt: gt ? index1_indexify(gt) : null,
-      lt: lt ? index1_indexify(lt) : null,
-      gte: gte ? index1_indexify(gte) : null,
-      lte: lte ? index1_indexify(lte) : null
+    return index2_key.encodeRange({
+      gt: gt ? index2_indexify(gt) : null,
+      lt: lt ? index2_indexify(lt) : null,
+      gte: gte ? index2_indexify(gte) : null,
+      lte: lte ? index2_indexify(lte) : null
     })
   },
-  encodeValue: (doc) => index1.collection.encodeKey(doc),
+  encodeValue: (doc) => index2.collection.encodeKey(doc),
   encodeIndexKeys (record, context) {
-    return [index1_key.encode([record.updated])]
+    return [index2_key.encode([record.updated])]
   },
   reconstruct: (keyBuf, valueBuf) => valueBuf,
-  offset: collection0.indexes.length,
-  collection: collection0
+  offset: collection1.indexes.length,
+  collection: collection1
 }
-collection0.indexes.push(index1)
+collection1.indexes.push(index2)
 
 const collections = [
-  collection0
+  collection0,
+  collection1
 ]
 
 const indexes = [
-  index1
+  index2
 ]
 
 module.exports = { version, collections, indexes, resolveCollection, resolveIndex }
 
 function resolveCollection (name) {
   switch (name) {
-    case '@hyperdiscovery/swarms': return collection0
+    case '@hyperdiscovery/manifest': return collection0
+    case '@hyperdiscovery/swarms': return collection1
     default: return null
   }
 }
 
 function resolveIndex (name) {
   switch (name) {
-    case '@hyperdiscovery/swarms-by-updated': return index1
+    case '@hyperdiscovery/swarms-by-updated': return index2
     default: return null
   }
 }

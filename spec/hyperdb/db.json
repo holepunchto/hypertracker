@@ -3,9 +3,20 @@
   "offset": 0,
   "schema": [
     {
-      "name": "swarms",
+      "name": "manifest",
       "namespace": "hyperdiscovery",
       "id": 0,
+      "type": 1,
+      "indexes": [],
+      "schema": "@hyperdiscovery/manifest",
+      "derived": false,
+      "key": [],
+      "trigger": null
+    },
+    {
+      "name": "swarms",
+      "namespace": "hyperdiscovery",
+      "id": 1,
       "type": 1,
       "indexes": [
         "@hyperdiscovery/swarms-by-updated"
@@ -20,7 +31,7 @@
     {
       "name": "swarms-by-updated",
       "namespace": "hyperdiscovery",
-      "id": 1,
+      "id": 2,
       "type": 2,
       "collection": "@hyperdiscovery/swarms",
       "unique": true,

@@ -10,6 +10,19 @@ const schema = Hyperschema.from(SCHEMA_DIR, { versioned: false })
 const trackerSchema = schema.namespace('hyperdiscovery')
 
 trackerSchema.register({
+  name: 'manifest',
+  fields: [{
+    name: 'version',
+    type: 'uint',
+    required: true
+  }, {
+    name: 'seed',
+    type: 'fixed32',
+    required: true
+  }]
+})
+
+trackerSchema.register({
   name: 'swarm',
   fields: [{
     name: 'publicKey',
@@ -92,6 +105,12 @@ Hyperschema.toDisk(schema)
 const db = HyperDB.from(SCHEMA_DIR, DB_DIR)
 
 const trackerDb = db.namespace('hyperdiscovery')
+
+trackerDb.collections.register({
+  name: 'manifest',
+  schema: '@hyperdiscovery/manifest',
+  key: []
+})
 
 trackerDb.collections.register({
   name: 'swarms',

@@ -1,21 +1,14 @@
-import HyperDHT from 'hyperdht'
 import createTestnet from 'hyperdht/testnet.js'
 import crypto from 'hypercore-crypto'
 import { HyperDiscovery, HyperDiscoveryClient } from './index.js'
 
 const testnet = await createTestnet()
-const dht = new HyperDHT({ bootstrap: testnet.bootstrap })
 
-const server = dht.createServer()
-await server.listen()
+const s = new HyperDiscovery('/tmp/hyperdiscovery', { bootstrap: testnet.bootstrap })
+await s.ready()
 
-server.on('connection', c => {
-  s.addStream(c)
-})
-
-const s = new HyperDiscovery('/tmp/hyperdiscovery')
-const p1 = new HyperDiscoveryClient(dht.connect(server.address().publicKey))
-const p2 = new HyperDiscoveryClient(dht.connect(server.address().publicKey))
+const p1 = new HyperDiscoveryClient(s.publicKey, { bootstrap: testnet.bootstrap })
+const p2 = new HyperDiscoveryClient(s.publicKey, { bootstrap: testnet.bootstrap })
 
 const k = crypto.keyPair()
 

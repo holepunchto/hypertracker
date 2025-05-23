@@ -2,6 +2,26 @@
   "version": 1,
   "schema": [
     {
+      "name": "manifest",
+      "namespace": "hyperdiscovery",
+      "compact": false,
+      "flagsPosition": -1,
+      "fields": [
+        {
+          "name": "version",
+          "required": true,
+          "type": "uint",
+          "version": 1
+        },
+        {
+          "name": "seed",
+          "required": true,
+          "type": "fixed32",
+          "version": 1
+        }
+      ]
+    },
+    {
       "name": "swarm",
       "namespace": "hyperdiscovery",
       "compact": false,
