@@ -1,6 +1,6 @@
 {
   "name": "@holepunchto/hyperdiscovery",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Peer discovery powered by HyperDHT",
   "main": "index.js",
   "dependencies": {
