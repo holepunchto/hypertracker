@@ -220,6 +220,10 @@ class HyperDiscoveryClient extends ReadyResource {
     if (this._shouldReconnect && !this.closing) this._reconnect()
   }
 
+  connect () {
+    if (!this.channel) this._reconnect()
+  }
+
   async _reconnect () {
     if (this.connecting) return
     this.connecting = true
