@@ -225,7 +225,7 @@ class HyperDiscoveryClient extends ReadyResource {
   }
 
   async _reconnect () {
-    if (this.connecting) return
+    if (this.connecting) return this.channel
     this.connecting = true
     this._shouldReconnect = true
 
@@ -246,6 +246,7 @@ class HyperDiscoveryClient extends ReadyResource {
         ]
       })
 
+      if (!this.channel) break
       this.channel.open()
 
       await new Promise((resolve) => {
@@ -282,9 +283,10 @@ class HyperDiscoveryClient extends ReadyResource {
     }
 
     this.connecting = false
-    if (this.closing || this.suspended) return
+    if (this.closing || this.suspended) return this.channel
 
     this.emit('connect')
+    return this.channel
   }
 
   _close () {
@@ -305,17 +307,17 @@ class HyperDiscoveryClient extends ReadyResource {
   }
 
   cork () {
-    if (!this.channel) this._reconnect()
+    if (!this.channel && !this._reconnect()) return
     this.channel.cork()
   }
 
   uncork () {
-    if (!this.channel) this._reconnect()
+    if (!this.channel && !this._reconnect()) return
     this.channel.uncork()
   }
 
   subscribe (publicKey, { since = 0 } = {}) {
-    if (!this.channel) this._reconnect()
+    if (!this.channel && !this._reconnect()) return
     this.channel.messages[0].send({
       publicKey,
       since
@@ -323,14 +325,14 @@ class HyperDiscoveryClient extends ReadyResource {
   }
 
   unsubscribe (publicKey) {
-    if (!this.channel) this._reconnect()
+    if (!this.channel && !this._reconnect()) return
     this.channel.messages[1].send({
       publicKey
     })
   }
 
   async announce (keyPair, { bump = Date.now() } = {}) {
-    if (!this.channel) this._reconnect()
+    if (!this.channel && !this._reconnect()) return
 
     const ann = { bump }
     const state = { buffer: null, start: 0, end: 0 }
