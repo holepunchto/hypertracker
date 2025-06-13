@@ -61,6 +61,7 @@ class HyperDiscovery extends ReadyResource {
     if (this._flushing) await this._flushing
     this._flushTimeout = null
     if (this._server) await this._server.close()
+    await this.db.close()
   }
 
   async _flushBackground () {
