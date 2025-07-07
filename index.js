@@ -307,33 +307,42 @@ class HyperDiscoveryClient extends ReadyResource {
     this.emit('announce', bump)
   }
 
+  _getChannel () {
+    if (this.channel) return this.channel
+    this._reconnect()
+    return this.channel
+  }
+
   cork () {
-    if (!this.channel && !this._reconnect()) return
-    this.channel.cork()
+    const channel = this._getChannel()
+    if (channel) channel.cork()
   }
 
   uncork () {
-    if (!this.channel && !this._reconnect()) return
-    this.channel.uncork()
+    const channel = this._getChannel()
+    if (channel) channel.uncork()
   }
 
   subscribe (publicKey, { since = 0 } = {}) {
-    if (!this.channel && !this._reconnect()) return
-    this.channel.messages[0].send({
+    const channel = this._getChannel()
+    if (!channel) return
+    channel.messages[0].send({
       publicKey,
       since
     })
   }
 
   unsubscribe (publicKey) {
-    if (!this.channel && !this._reconnect()) return
-    this.channel.messages[1].send({
+    const channel = this._getChannel()
+    if (!channel) return
+    channel.messages[1].send({
       publicKey
     })
   }
 
   async announce (keyPair, { bump = Date.now() } = {}) {
-    if (!this.channel && !this._reconnect()) return
+    const channel = this._getChannel()
+    if (!channel) return
 
     const ann = { bump }
     const state = { buffer: null, start: 0, end: 0 }
@@ -349,7 +358,7 @@ class HyperDiscoveryClient extends ReadyResource {
     const signature = crypto.sign(state.buffer, keyPair.secretKey)
     const m = { publicKey: keyPair.publicKey, announce: ann, signature }
 
-    this.channel.messages[2].send(m)
+    channel.messages[2].send(m)
   }
 }
 
