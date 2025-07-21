@@ -213,6 +213,7 @@ class HyperDiscoveryClient extends ReadyResource {
     this.connecting = null
     this.channel = null
     this.muxer = null
+    if (this.connection.destroyed) return
     await new Promise(resolve => this.connection.on('close', resolve))
   }
 
