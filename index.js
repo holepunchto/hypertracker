@@ -67,7 +67,7 @@ class HyperDiscovery extends ReadyResource {
   async _flushBackground () {
     while (!this.closing) {
       await new Promise((resolve) => {
-        this._flushTimeout = setTimeout(120_000, resolve)
+        this._flushTimeout = setTimeout(resolve, 120_000)
       })
 
       this._flushTimeout = null
