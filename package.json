@@ -7,7 +7,7 @@
     "b4a": "^1.6.7",
     "compact-encoding": "^2.16.1",
     "hypercore-crypto": "^3.6.0",
-    "hyperdb": "^5.0.0",
+    "hyperdb": "^6.6.3",
     "hyperdht": "^6.20.5",
     "hyperschema": "^1.12.1",
     "protomux": "^3.10.1",
