@@ -17,7 +17,7 @@ const Unsubscribe = getEncoding('@hyperdiscovery/unsubscribe-to-swarm')
 const Bump = getEncoding('@hyperdiscovery/bump-from-swarm')
 
 class HyperDiscovery extends ReadyResource {
-  constructor (storage, { bootstrap, dht = new HyperDHT({ bootstrap }) } = {}) {
+  constructor(storage, { bootstrap, dht = new HyperDHT({ bootstrap }) } = {}) {
     super()
 
     this.dht = dht
@@ -32,11 +32,11 @@ class HyperDiscovery extends ReadyResource {
     this.ready().catch(noop)
   }
 
-  get publicKey () {
+  get publicKey() {
     return this._server && this._server.address().publicKey
   }
 
-  async _open () {
+  async _open() {
     await this._init()
 
     this._flushBackground().catch(noop)
@@ -47,7 +47,7 @@ class HyperDiscovery extends ReadyResource {
     await this._server.listen(crypto.keyPair(this._manifest.seed))
   }
 
-  async _init () {
+  async _init() {
     this._manifest = await this.db.get('@hyperdiscovery/manifest')
     if (this._manifest) return
 
@@ -56,7 +56,7 @@ class HyperDiscovery extends ReadyResource {
     await this.db.flush()
   }
 
-  async _close () {
+  async _close() {
     if (this._flushTimeout) clearTimeout(this._flushTimeout)
     if (this._flushing) await this._flushing
     this._flushTimeout = null
@@ -64,7 +64,7 @@ class HyperDiscovery extends ReadyResource {
     await this.db.close()
   }
 
-  async _flushBackground () {
+  async _flushBackground() {
     while (!this.closing) {
       await new Promise((resolve) => {
         this._flushTimeout = setTimeout(resolve, 120_000)
@@ -79,7 +79,7 @@ class HyperDiscovery extends ReadyResource {
     }
   }
 
-  _addSub (channel, id, since) {
+  _addSub(channel, id, since) {
     let subs = this.subs.get(id)
 
     if (!subs) {
@@ -90,14 +90,14 @@ class HyperDiscovery extends ReadyResource {
     subs.set(channel, since)
   }
 
-  _removeSub (channel, id) {
+  _removeSub(channel, id) {
     const subs = this.subs.get(id)
     if (!subs) return
     subs.delete(channel)
     if (!subs.size) this.subs.delete(id)
   }
 
-  addStream (stream) {
+  addStream(stream) {
     const muxer = getMuxer(stream)
     const tracker = this
     const subs = new Set()
@@ -105,7 +105,7 @@ class HyperDiscovery extends ReadyResource {
     muxer.pair({ protocol: 'hyperdiscovery' }, onpair)
     onpair()
 
-    function onpair () {
+    function onpair() {
       const channel = muxer.createChannel({
         protocol: 'hyperdiscovery',
         messages: [
@@ -114,7 +114,7 @@ class HyperDiscovery extends ReadyResource {
           { encoding: Announce, onmessage: onannounce },
           { encoding: Bump, onmessage: unsupported }
         ],
-        onclose () {
+        onclose() {
           for (const id of subs) tracker._removeSub(channel, id)
         }
       })
@@ -123,7 +123,7 @@ class HyperDiscovery extends ReadyResource {
 
       channel.open()
 
-      async function onsubscribe (m) {
+      async function onsubscribe(m) {
         const id = b4a.toString(m.publicKey, 'hex')
         subs.add(id)
         tracker._addSub(channel, id, m.since)
@@ -132,24 +132,24 @@ class HyperDiscovery extends ReadyResource {
         if (v && v.bumped >= m.since) channel.messages[3].send(v)
       }
 
-      function onunsubscribe (m) {
+      function onunsubscribe(m) {
         const id = b4a.toString(m.publicKey, 'hex')
         subs.delete(id)
         tracker._removeSub(channel, id)
       }
 
-      function onannounce (m) {
+      function onannounce(m) {
         return tracker.announce(m, channel)
       }
     }
   }
 
-  async lookup (publicKey) {
+  async lookup(publicKey) {
     const v = await this.db.get('@hyperdiscovery/swarms', { publicKey })
     return v
   }
 
-  async announce (m, channel) {
+  async announce(m, channel) {
     const state = { buffer: null, start: 0, end: 0 }
 
     c.fixed32.preencode(state, NS_ANNOUNCE)
@@ -160,7 +160,7 @@ class HyperDiscovery extends ReadyResource {
     c.fixed32.encode(state, NS_ANNOUNCE)
     AnnouncePayload.encode(state, m.announce)
 
-    if ((Date.now() + TIME_SLACK) > m.announce.bumped) return false
+    if (Date.now() + TIME_SLACK > m.announce.bumped) return false
     if (!crypto.verify(state.buffer, m.signature, m.publicKey)) return false
 
     const v = await this.db.get('@hyperdiscovery/swarms', m.publicKey)
@@ -189,7 +189,7 @@ class HyperDiscovery extends ReadyResource {
 }
 
 class HyperDiscoveryClient extends ReadyResource {
-  constructor (remotePublicKey, { bootstrap, dht = new HyperDHT({ bootstrap }) } = {}) {
+  constructor(remotePublicKey, { bootstrap, dht = new HyperDHT({ bootstrap }) } = {}) {
     super()
 
     this.remotePublicKey = remotePublicKey
@@ -205,7 +205,7 @@ class HyperDiscoveryClient extends ReadyResource {
     this._shouldReconnect = false
   }
 
-  async suspend () {
+  async suspend() {
     this.suspended = true
     this._clearRetry()
     if (!this.connection) return
@@ -214,19 +214,19 @@ class HyperDiscoveryClient extends ReadyResource {
     this.channel = null
     this.muxer = null
     if (this.connection.destroyed) return
-    await new Promise(resolve => this.connection.on('close', resolve))
+    await new Promise((resolve) => this.connection.on('close', resolve))
   }
 
-  resume () {
+  resume() {
     this.suspended = false
     if (this._shouldReconnect && !this.closing) this._reconnect()
   }
 
-  connect () {
+  connect() {
     if (!this.channel) this._reconnect()
   }
 
-  async _reconnect () {
+  async _reconnect() {
     if (this.connecting) return this.channel
     this.connecting = true
     this._shouldReconnect = true
@@ -234,7 +234,7 @@ class HyperDiscoveryClient extends ReadyResource {
     let strikes = 0
 
     while (!this.closing && !this.suspended) {
-      const connection = this.connection = this.dht.connect(this.remotePublicKey)
+      const connection = (this.connection = this.dht.connect(this.remotePublicKey))
 
       this.muxer = getMuxer(this.connection)
       this.channel = this.muxer.createChannel({
@@ -255,7 +255,7 @@ class HyperDiscoveryClient extends ReadyResource {
         connection.on('connect', done)
         connection.on('error', done)
 
-        function done () {
+        function done() {
           connection.off('connect', done)
           connection.off('error', done)
           resolve()
@@ -291,12 +291,12 @@ class HyperDiscoveryClient extends ReadyResource {
     return this.channel
   }
 
-  _close () {
+  _close() {
     if (this.connection) this.connection.destroy()
     this._clearRetry()
   }
 
-  _clearRetry () {
+  _clearRetry() {
     if (!this._retryTimeout) return
     clearTimeout(this._retryTimeout)
     this._retryResolve()
@@ -304,27 +304,27 @@ class HyperDiscoveryClient extends ReadyResource {
     this._retryTimeout = null
   }
 
-  _onbump (bump) {
+  _onbump(bump) {
     this.emit('announce', bump)
   }
 
-  _getChannel () {
+  _getChannel() {
     if (this.channel) return this.channel
     this._reconnect()
     return this.channel
   }
 
-  cork () {
+  cork() {
     const channel = this._getChannel()
     if (channel) channel.cork()
   }
 
-  uncork () {
+  uncork() {
     const channel = this._getChannel()
     if (channel) channel.uncork()
   }
 
-  subscribe (publicKey, { since = 0 } = {}) {
+  subscribe(publicKey, { since = 0 } = {}) {
     const channel = this._getChannel()
     if (!channel) return
     channel.messages[0].send({
@@ -333,7 +333,7 @@ class HyperDiscoveryClient extends ReadyResource {
     })
   }
 
-  unsubscribe (publicKey) {
+  unsubscribe(publicKey) {
     const channel = this._getChannel()
     if (!channel) return
     channel.messages[1].send({
@@ -341,7 +341,7 @@ class HyperDiscoveryClient extends ReadyResource {
     })
   }
 
-  async announce (keyPair, { bump = Date.now() } = {}) {
+  async announce(keyPair, { bump = Date.now() } = {}) {
     const channel = this._getChannel()
     if (!channel) return
 
@@ -365,7 +365,7 @@ class HyperDiscoveryClient extends ReadyResource {
 
 module.exports = { HyperDiscovery, HyperDiscoveryClient }
 
-function getMuxer (stream) {
+function getMuxer(stream) {
   if (Protomux.isProtomux(stream)) return stream
   if (stream.noiseStream.userData) return stream.noiseStream.userData
   const mux = Protomux.from(stream.noiseStream)
@@ -373,12 +373,12 @@ function getMuxer (stream) {
   return mux
 }
 
-function onbump (bump, channel) {
+function onbump(bump, channel) {
   channel.userData._onbump(bump)
 }
 
-function unsupported () {
+function unsupported() {
   throw new Error('Method not supported')
 }
 
-function noop () {}
+function noop() {}
