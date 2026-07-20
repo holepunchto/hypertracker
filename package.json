@@ -20,7 +20,8 @@
   "scripts": {
     "lint": "prettier --check . && lunte",
     "format": "prettier --write . && lunte --fix",
-    "test": "npm run lint"
+    "test": "brittle-node -c test.js",
+    "test:bare": "brittle-bare -c test.js"
   },
   "author": "Holepunch Inc.",
   "license": "Apache-2.0",
@@ -29,6 +30,7 @@
   },
   "homepage": "https://github.com/holepunchto/hyperdiscovery",
   "devDependencies": {
+    "brittle": "^4.1.0",
     "lunte": "^1.8.4",
     "prettier-config-holepunch": "^2.0.0"
   }
