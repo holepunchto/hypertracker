@@ -69,6 +69,13 @@ test('lookup returns the latest announce', async (t) => {
   const record = await waitForRecord(server, keyPair.publicKey)
   t.ok(record, 'record exists after announce')
   t.is(record.bumped, bump, 'stores the bump timestamp')
+
+  const bump2 = bump + 10_000
+  await announcer.announce(keyPair, { bump: bump2 })
+  await new Promise((resolve) => setTimeout(resolve, 800))
+
+  const updated = await server.lookup(keyPair.publicKey)
+  t.is(updated.bumped, bump2, 'lookup reflects a newer announce')
 })
 
 test('unsubscribe stops future announces', async (t) => {
