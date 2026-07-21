@@ -11,93 +11,115 @@ const trackerSchema = schema.namespace('hyperdiscovery')
 
 trackerSchema.register({
   name: 'manifest',
-  fields: [{
-    name: 'version',
-    type: 'uint',
-    required: true
-  }, {
-    name: 'seed',
-    type: 'fixed32',
-    required: true
-  }]
+  fields: [
+    {
+      name: 'version',
+      type: 'uint',
+      required: true
+    },
+    {
+      name: 'seed',
+      type: 'fixed32',
+      required: true
+    }
+  ]
 })
 
 trackerSchema.register({
   name: 'swarm',
-  fields: [{
-    name: 'publicKey',
-    type: 'fixed32',
-    required: true
-  }, {
-    name: 'bumped',
-    type: 'uint'
-  }, {
-    name: 'updated',
-    type: 'uint'
-  }, {
-    name: 'signature',
-    type: 'fixed64'
-  }]
+  fields: [
+    {
+      name: 'publicKey',
+      type: 'fixed32',
+      required: true
+    },
+    {
+      name: 'bumped',
+      type: 'uint'
+    },
+    {
+      name: 'updated',
+      type: 'uint'
+    },
+    {
+      name: 'signature',
+      type: 'fixed64'
+    }
+  ]
 })
 
 trackerSchema.register({
   name: 'announce',
-  fields: [{
-    name: 'bump',
-    type: 'uint'
-  }]
+  fields: [
+    {
+      name: 'bump',
+      type: 'uint'
+    }
+  ]
 })
 
 trackerSchema.register({
   name: 'announce-to-swarm',
-  fields: [{
-    name: 'publicKey',
-    type: 'fixed32',
-    required: true
-  }, {
-    name: 'announce',
-    type: '@hyperdiscovery/announce',
-    required: true
-  }, {
-    name: 'signature',
-    type: 'fixed64',
-    required: true
-  }]
+  fields: [
+    {
+      name: 'publicKey',
+      type: 'fixed32',
+      required: true
+    },
+    {
+      name: 'announce',
+      type: '@hyperdiscovery/announce',
+      required: true
+    },
+    {
+      name: 'signature',
+      type: 'fixed64',
+      required: true
+    }
+  ]
 })
 
 trackerSchema.register({
   name: 'subscribe-to-swarm',
-  fields: [{
-    name: 'publicKey',
-    type: 'fixed32',
-    required: true
-  }, {
-    name: 'since',
-    type: 'uint',
-    required: true
-  }]
+  fields: [
+    {
+      name: 'publicKey',
+      type: 'fixed32',
+      required: true
+    },
+    {
+      name: 'since',
+      type: 'uint',
+      required: true
+    }
+  ]
 })
 
 trackerSchema.register({
   name: 'unsubscribe-to-swarm',
-  fields: [{
-    name: 'publicKey',
-    type: 'fixed32',
-    required: true
-  }]
+  fields: [
+    {
+      name: 'publicKey',
+      type: 'fixed32',
+      required: true
+    }
+  ]
 })
 
 trackerSchema.register({
   name: 'bump-from-swarm',
-  fields: [{
-    name: 'publicKey',
-    type: 'fixed32',
-    required: true
-  }, {
-    name: 'bumped',
-    type: 'uint',
-    required: true
-  }]
+  fields: [
+    {
+      name: 'publicKey',
+      type: 'fixed32',
+      required: true
+    },
+    {
+      name: 'bumped',
+      type: 'uint',
+      required: true
+    }
+  ]
 })
 
 Hyperschema.toDisk(schema)

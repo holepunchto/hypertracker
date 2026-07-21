@@ -18,14 +18,10 @@
       "namespace": "hyperdiscovery",
       "id": 1,
       "type": 1,
-      "indexes": [
-        "@hyperdiscovery/swarms-by-updated"
-      ],
+      "indexes": ["@hyperdiscovery/swarms-by-updated"],
       "schema": "@hyperdiscovery/swarm",
       "derived": false,
-      "key": [
-        "publicKey"
-      ],
+      "key": ["publicKey"],
       "trigger": null
     },
     {
@@ -35,9 +31,7 @@
       "type": 2,
       "collection": "@hyperdiscovery/swarms",
       "unique": true,
-      "key": [
-        "updated"
-      ]
+      "key": ["updated"]
     }
   ]
 }

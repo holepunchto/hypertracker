@@ -1,13 +1,12 @@
 # hyperdiscovery
 
-
 ```
 npm install @holepunchto/hyperdiscovery
 ```
 
 ## Usage
 
-``` js
+```js
 const Hyperdiscovery = require('@holepunchto/hyperdiscovery')
 ```
 

@@ -12,15 +12,15 @@ let version = VERSION
 
 // @hyperdiscovery/manifest
 const encoding0 = {
-  preencode (state, m) {
+  preencode(state, m) {
     c.uint.preencode(state, m.version)
     c.fixed32.preencode(state, m.seed)
   },
-  encode (state, m) {
+  encode(state, m) {
     c.uint.encode(state, m.version)
     c.fixed32.encode(state, m.seed)
   },
-  decode (state) {
+  decode(state) {
     const r0 = c.uint.decode(state)
     const r1 = c.fixed32.decode(state)
 
@@ -33,7 +33,7 @@ const encoding0 = {
 
 // @hyperdiscovery/swarm
 const encoding1 = {
-  preencode (state, m) {
+  preencode(state, m) {
     c.fixed32.preencode(state, m.publicKey)
     state.end++ // max flag is 4 so always one byte
 
@@ -41,11 +41,8 @@ const encoding1 = {
     if (m.updated) c.uint.preencode(state, m.updated)
     if (m.signature) c.fixed64.preencode(state, m.signature)
   },
-  encode (state, m) {
-    const flags =
-      (m.bumped ? 1 : 0) |
-      (m.updated ? 2 : 0) |
-      (m.signature ? 4 : 0)
+  encode(state, m) {
+    const flags = (m.bumped ? 1 : 0) | (m.updated ? 2 : 0) | (m.signature ? 4 : 0)
 
     c.fixed32.encode(state, m.publicKey)
     c.uint.encode(state, flags)
@@ -54,7 +51,7 @@ const encoding1 = {
     if (m.updated) c.uint.encode(state, m.updated)
     if (m.signature) c.fixed64.encode(state, m.signature)
   },
-  decode (state) {
+  decode(state) {
     const r0 = c.fixed32.decode(state)
     const flags = c.uint.decode(state)
 
@@ -69,19 +66,19 @@ const encoding1 = {
 
 // @hyperdiscovery/announce
 const encoding2 = {
-  preencode (state, m) {
+  preencode(state, m) {
     state.end++ // max flag is 1 so always one byte
 
     if (m.bump) c.uint.preencode(state, m.bump)
   },
-  encode (state, m) {
+  encode(state, m) {
     const flags = m.bump ? 1 : 0
 
     c.uint.encode(state, flags)
 
     if (m.bump) c.uint.encode(state, m.bump)
   },
-  decode (state) {
+  decode(state) {
     const flags = c.uint.decode(state)
 
     return {
@@ -95,17 +92,17 @@ const encoding3_1 = c.frame(encoding2)
 
 // @hyperdiscovery/announce-to-swarm
 const encoding3 = {
-  preencode (state, m) {
+  preencode(state, m) {
     c.fixed32.preencode(state, m.publicKey)
     encoding3_1.preencode(state, m.announce)
     c.fixed64.preencode(state, m.signature)
   },
-  encode (state, m) {
+  encode(state, m) {
     c.fixed32.encode(state, m.publicKey)
     encoding3_1.encode(state, m.announce)
     c.fixed64.encode(state, m.signature)
   },
-  decode (state) {
+  decode(state) {
     const r0 = c.fixed32.decode(state)
     const r1 = encoding3_1.decode(state)
     const r2 = c.fixed64.decode(state)
@@ -120,15 +117,15 @@ const encoding3 = {
 
 // @hyperdiscovery/subscribe-to-swarm
 const encoding4 = {
-  preencode (state, m) {
+  preencode(state, m) {
     c.fixed32.preencode(state, m.publicKey)
     c.uint.preencode(state, m.since)
   },
-  encode (state, m) {
+  encode(state, m) {
     c.fixed32.encode(state, m.publicKey)
     c.uint.encode(state, m.since)
   },
-  decode (state) {
+  decode(state) {
     const r0 = c.fixed32.decode(state)
     const r1 = c.uint.decode(state)
 
@@ -141,13 +138,13 @@ const encoding4 = {
 
 // @hyperdiscovery/unsubscribe-to-swarm
 const encoding5 = {
-  preencode (state, m) {
+  preencode(state, m) {
     c.fixed32.preencode(state, m.publicKey)
   },
-  encode (state, m) {
+  encode(state, m) {
     c.fixed32.encode(state, m.publicKey)
   },
-  decode (state) {
+  decode(state) {
     const r0 = c.fixed32.decode(state)
 
     return {
@@ -158,15 +155,15 @@ const encoding5 = {
 
 // @hyperdiscovery/bump-from-swarm
 const encoding6 = {
-  preencode (state, m) {
+  preencode(state, m) {
     c.fixed32.preencode(state, m.publicKey)
     c.uint.preencode(state, m.bumped)
   },
-  encode (state, m) {
+  encode(state, m) {
     c.fixed32.encode(state, m.publicKey)
     c.uint.encode(state, m.bumped)
   },
-  decode (state) {
+  decode(state) {
     const r0 = c.fixed32.decode(state)
     const r1 = c.uint.decode(state)
 
@@ -179,18 +176,15 @@ const encoding6 = {
 
 // @hyperdiscovery/swarm/hyperdb#1
 const encoding7 = {
-  preencode (state, m) {
+  preencode(state, m) {
     state.end++ // max flag is 4 so always one byte
 
     if (m.bumped) c.uint.preencode(state, m.bumped)
     if (m.updated) c.uint.preencode(state, m.updated)
     if (m.signature) c.fixed64.preencode(state, m.signature)
   },
-  encode (state, m) {
-    const flags =
-      (m.bumped ? 1 : 0) |
-      (m.updated ? 2 : 0) |
-      (m.signature ? 4 : 0)
+  encode(state, m) {
+    const flags = (m.bumped ? 1 : 0) | (m.updated ? 2 : 0) | (m.signature ? 4 : 0)
 
     c.uint.encode(state, flags)
 
@@ -198,7 +192,7 @@ const encoding7 = {
     if (m.updated) c.uint.encode(state, m.updated)
     if (m.signature) c.fixed64.encode(state, m.signature)
   },
-  decode (state) {
+  decode(state) {
     const flags = c.uint.decode(state)
 
     return {
@@ -210,52 +204,62 @@ const encoding7 = {
   }
 }
 
-function setVersion (v) {
+function setVersion(v) {
   version = v
 }
 
-function encode (name, value, v = VERSION) {
+function encode(name, value, v = VERSION) {
   version = v
   return c.encode(getEncoding(name), value)
 }
 
-function decode (name, buffer, v = VERSION) {
+function decode(name, buffer, v = VERSION) {
   version = v
   return c.decode(getEncoding(name), buffer)
 }
 
-function getEnum (name) {
+function getEnum(name) {
   switch (name) {
-    default: throw new Error('Enum not found ' + name)
+    default:
+      throw new Error('Enum not found ' + name)
   }
 }
 
-function getEncoding (name) {
+function getEncoding(name) {
   switch (name) {
-    case '@hyperdiscovery/manifest': return encoding0
-    case '@hyperdiscovery/swarm': return encoding1
-    case '@hyperdiscovery/announce': return encoding2
-    case '@hyperdiscovery/announce-to-swarm': return encoding3
-    case '@hyperdiscovery/subscribe-to-swarm': return encoding4
-    case '@hyperdiscovery/unsubscribe-to-swarm': return encoding5
-    case '@hyperdiscovery/bump-from-swarm': return encoding6
-    case '@hyperdiscovery/swarm/hyperdb#1': return encoding7
-    default: throw new Error('Encoder not found ' + name)
+    case '@hyperdiscovery/manifest':
+      return encoding0
+    case '@hyperdiscovery/swarm':
+      return encoding1
+    case '@hyperdiscovery/announce':
+      return encoding2
+    case '@hyperdiscovery/announce-to-swarm':
+      return encoding3
+    case '@hyperdiscovery/subscribe-to-swarm':
+      return encoding4
+    case '@hyperdiscovery/unsubscribe-to-swarm':
+      return encoding5
+    case '@hyperdiscovery/bump-from-swarm':
+      return encoding6
+    case '@hyperdiscovery/swarm/hyperdb#1':
+      return encoding7
+    default:
+      throw new Error('Encoder not found ' + name)
   }
 }
 
-function getStruct (name, v = VERSION) {
+function getStruct(name, v = VERSION) {
   const enc = getEncoding(name)
   return {
-    preencode (state, m) {
+    preencode(state, m) {
       version = v
       enc.preencode(state, m)
     },
-    encode (state, m) {
+    encode(state, m) {
       version = v
       enc.encode(state, m)
     },
-    decode (state) {
+    decode(state) {
       version = v
       return enc.decode(state)
     }
@@ -264,4 +268,13 @@ function getStruct (name, v = VERSION) {
 
 const resolveStruct = getStruct // compat
 
-module.exports = { resolveStruct, getStruct, getEnum, getEncoding, encode, decode, setVersion, version }
+module.exports = {
+  resolveStruct,
+  getStruct,
+  getEnum,
+  getEncoding,
+  encode,
+  decode,
+  setVersion,
+  version
+}

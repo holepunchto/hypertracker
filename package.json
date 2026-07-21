@@ -18,7 +18,9 @@
     "url": "https://github.com/holepunchto/hyperdiscovery.git"
   },
   "scripts": {
-    "test": "standard"
+    "lint": "prettier --check . && lunte",
+    "format": "prettier --write . && lunte --fix",
+    "test": "npm run lint"
   },
   "author": "Holepunch Inc.",
   "license": "Apache-2.0",
@@ -27,6 +29,7 @@
   },
   "homepage": "https://github.com/holepunchto/hyperdiscovery",
   "devDependencies": {
-    "standard": "^17.1.2"
+    "lunte": "^1.8.4",
+    "prettier-config-holepunch": "^2.0.0"
   }
 }
