@@ -101,16 +101,26 @@ test('unsubscribe stops future announces', async (t) => {
   t.teardown(() => announcer.close(), { order: 2000 })
 
   const keyPair = crypto.keyPair()
+  let receivedCount = 0
 
-  subscriber.on('announce', () => t.fail('should not receive announce after unsubscribing'))
+  const firstAnnounce = t.test('first announce while subscribed')
+  firstAnnounce.plan(1)
+
+  subscriber.on('announce', () => {
+    receivedCount++
+    if (receivedCount === 1) firstAnnounce.pass('subscriber receives an announce while subscribed')
+  })
 
   subscriber.subscribe(keyPair.publicKey)
-  subscriber.unsubscribe(keyPair.publicKey)
+  await announcer.announce(keyPair, { bump: Date.now() })
 
-  await announcer.announce(keyPair)
+  await firstAnnounce
+
+  subscriber.unsubscribe(keyPair.publicKey)
+  await announcer.announce(keyPair, { bump: Date.now() + 10_000 })
 
   await new Promise((resolve) => setTimeout(resolve, 1500))
-  t.pass('no announce received')
+  t.is(receivedCount, 1, 'no further announce received after unsubscribing')
 })
 
 test('stale announce does not overwrite a newer record', async (t) => {
@@ -144,6 +154,13 @@ test('stale announce does not overwrite a newer record', async (t) => {
   const stale = await server.lookup(keyPair.publicKey)
   t.is(stale.bumped, record.bumped, 'bump is unchanged by an older announce')
   t.is(stale.updated, record.updated, 'record is untouched by an older announce')
+
+  const newerBump = bump + 10_000
+  await announcer.announce(keyPair, { bump: newerBump })
+  await new Promise((resolve) => setTimeout(resolve, 800))
+
+  const updated = await server.lookup(keyPair.publicKey)
+  t.is(updated.bumped, newerBump, 'a genuinely newer announce still updates the record')
 })
 
 test('subscribing after an announce delivers the current record', async (t) => {
