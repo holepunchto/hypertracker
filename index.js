@@ -163,7 +163,7 @@ class HyperDiscovery extends ReadyResource {
     if (Date.now() + TIME_SLACK > m.announce.bumped) return false
     if (!crypto.verify(state.buffer, m.signature, m.publicKey)) return false
 
-    const v = await this.db.get('@hyperdiscovery/swarms', m.publicKey)
+    const v = await this.db.get('@hyperdiscovery/swarms', { publicKey: m.publicKey })
     if (v && v.bumped >= m.announce.bump) return false
 
     const doc = {
