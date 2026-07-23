@@ -203,6 +203,81 @@ test('subscribing after an announce delivers the current record', async (t) => {
   await caughtUp
 })
 
+test('resubscribes after server restart', async (t) => {
+  t.timeout(60_000)
+
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  let serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  const subscriberDht = new HyperDHT({ bootstrap })
+  t.teardown(() => subscriberDht.destroy(), { order: 4000 })
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  let server = new HyperDiscovery(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+  const publicKey = Buffer.from(server.publicKey)
+
+  const subscriber = new HyperDiscoveryClient(publicKey, { dht: subscriberDht })
+  t.teardown(() => subscriber.close(), { order: 2000 })
+  const announcer = new HyperDiscoveryClient(publicKey, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+
+  const keyPair = crypto.keyPair()
+
+  const connected = t.test('initial connect')
+  connected.plan(2)
+  subscriber.once('connect', () => connected.pass('subscriber connected'))
+  announcer.once('connect', () => connected.pass('announcer connected'))
+  subscriber.connect()
+  announcer.connect()
+  await connected
+
+  const firstAnnounce = t.test('announce before restart')
+  firstAnnounce.plan(1)
+  subscriber.once('announce', (ann) => {
+    firstAnnounce.alike(ann.publicKey, keyPair.publicKey, 'receives announce before restart')
+  })
+  subscriber.subscribe(keyPair.publicKey)
+  await announcer.announce(keyPair, { bump: Date.now() })
+  await firstAnnounce
+
+  const reconnected = t.test('reconnect after restart')
+  reconnected.plan(2)
+  subscriber.once('connect', () => reconnected.pass('subscriber reconnected'))
+  announcer.once('connect', () => reconnected.pass('announcer reconnected'))
+
+  await server.close()
+  await serverDht.destroy()
+
+  serverDht = new HyperDHT({ bootstrap })
+  server = new HyperDiscovery(storage, { dht: serverDht })
+  await server.ready()
+  t.alike(server.publicKey, publicKey, 'restarted server keeps the same public key')
+
+  await reconnected
+
+  const bump = Date.now() + 10_000
+  const secondAnnounce = t.test('announce after resubscribe')
+  secondAnnounce.plan(1)
+  subscriber.on('announce', (ann) => {
+    if (ann.bumped === bump) {
+      secondAnnounce.alike(
+        ann.publicKey,
+        keyPair.publicKey,
+        'receives announce without calling subscribe again'
+      )
+    }
+  })
+  await announcer.announce(keyPair, { bump })
+  await secondAnnounce
+})
+
 async function waitForRecord(server, publicKey, timeout = 5000) {
   const start = Date.now()
   while (Date.now() - start < timeout) {
