@@ -330,8 +330,9 @@ class HyperDiscoveryClient extends ReadyResource {
     if (channel) channel.uncork()
   }
 
-  subscribe(publicKey, { since = 0 } = {}) {
-    this.subs.set(b4a.toString(publicKey, 'hex'), { publicKey, opts: { since } })
+  subscribe(publicKey, opts = {}) {
+    const { since = 0 } = opts
+    this.subs.set(b4a.toString(publicKey, 'hex'), { publicKey, opts })
     const channel = this._getChannel()
     if (!channel || this.connecting) return
     channel.messages[0].send({
