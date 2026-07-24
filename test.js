@@ -190,6 +190,63 @@ test('resubscribes after server restart', async (t) => {
   await secondAnnounce
 })
 
+test('resubscribe preserves since across server restart', async (t) => {
+  t.timeout(60_000)
+
+  const { bootstrap, storage, server, serverDht, subscriber, announcer, keyPair } = await setup(t)
+  const publicKey = Buffer.from(server.publicKey)
+
+  const connected = t.test('initial connect')
+  connected.plan(2)
+  subscriber.once('connect', () => connected.pass('subscriber connected'))
+  announcer.once('connect', () => connected.pass('announcer connected'))
+  subscriber.connect()
+  announcer.connect()
+  await connected
+
+  const bump1 = Date.now()
+  await announcer.announce(keyPair, { bump: bump1 })
+  await waitForRecord(server, keyPair.publicKey)
+
+  const received = []
+  subscriber.on('announce', (ann) => received.push(ann.bumped))
+
+  subscriber.subscribe(keyPair.publicKey, { since: bump1 + 1 })
+  await delay(500)
+  t.alike(received, [], 'since skips catch-up before restart')
+
+  const reconnected = t.test('reconnect after restart')
+  reconnected.plan(2)
+  subscriber.once('connect', () => reconnected.pass('subscriber reconnected'))
+  announcer.once('connect', () => reconnected.pass('announcer reconnected'))
+
+  await server.close()
+  await serverDht.destroy()
+
+  const serverDht2 = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht2.destroy(), { order: 4000 })
+  const server2 = new HyperDiscovery(storage, { dht: serverDht2 })
+  t.teardown(() => server2.close(), { order: 3000 })
+  await server2.ready()
+  t.alike(server2.publicKey, publicKey, 'restarted server keeps the same public key')
+
+  await reconnected
+
+  await delay(500)
+  t.alike(received, [], 'resubscribe keeps since and skips catch-up')
+
+  const bump2 = bump1 + 10_000
+  const secondAnnounce = t.test('announce after resubscribe')
+  secondAnnounce.plan(1)
+  subscriber.on('announce', (ann) => {
+    if (ann.bumped === bump2) {
+      secondAnnounce.is(ann.bumped, bump2, 'receives newer announce after restart')
+    }
+  })
+  await announcer.announce(keyPair, { bump: bump2 })
+  await secondAnnounce
+})
+
 async function setup(t) {
   const testnet = await setupTestnet()
   const { bootstrap } = testnet
