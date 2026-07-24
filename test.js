@@ -6,7 +6,28 @@ const setupTestnet = require('hyperdht/testnet')
 const { HyperDiscovery, HyperDiscoveryClient } = require('.')
 
 test('subscriber receives event from announcer', async (t) => {
-  const { subscriber, announcer, keyPair } = await setup(t)
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  const subscriberDht = new HyperDHT({ bootstrap })
+  t.teardown(() => subscriberDht.destroy(), { order: 4000 })
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  const server = new HyperDiscovery(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const subscriber = new HyperDiscoveryClient(server.publicKey, { dht: subscriberDht })
+  t.teardown(() => subscriber.close(), { order: 2000 })
+  const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+
+  const keyPair = crypto.keyPair()
 
   const announced = t.test('announce event')
   announced.plan(1)
@@ -22,7 +43,23 @@ test('subscriber receives event from announcer', async (t) => {
 })
 
 test('lookup returns the latest announce', async (t) => {
-  const { server, announcer, keyPair } = await setup(t)
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  const server = new HyperDiscovery(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+  const keyPair = crypto.keyPair()
 
   t.alike(await server.lookup(keyPair.publicKey), null, 'no record')
 
@@ -35,14 +72,35 @@ test('lookup returns the latest announce', async (t) => {
 
   const bump2 = bump + 10_000
   await announcer.announce(keyPair, { bump: bump2 })
-  await delay(800)
+  await new Promise((resolve) => setTimeout(resolve, 800))
 
   const updated = await server.lookup(keyPair.publicKey)
   t.is(updated.bumped, bump2, 'lookup reflects a newer announce')
 })
 
 test('unsubscribe stops future announces', async (t) => {
-  const { subscriber, announcer, keyPair } = await setup(t)
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  const subscriberDht = new HyperDHT({ bootstrap })
+  t.teardown(() => subscriberDht.destroy(), { order: 4000 })
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  const server = new HyperDiscovery(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const subscriber = new HyperDiscoveryClient(server.publicKey, { dht: subscriberDht })
+  t.teardown(() => subscriber.close(), { order: 2000 })
+  const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+
+  const keyPair = crypto.keyPair()
   let receivedCount = 0
 
   const firstAnnounce = t.test('first announce while subscribed')
@@ -61,12 +119,28 @@ test('unsubscribe stops future announces', async (t) => {
   subscriber.unsubscribe(keyPair.publicKey)
   await announcer.announce(keyPair, { bump: Date.now() + 10_000 })
 
-  await delay(1500)
+  await new Promise((resolve) => setTimeout(resolve, 1500))
   t.is(receivedCount, 1, 'no further announce received after unsubscribing')
 })
 
 test('stale announce does not overwrite a newer record', async (t) => {
-  const { server, announcer, keyPair } = await setup(t)
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  const server = new HyperDiscovery(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+  const keyPair = crypto.keyPair()
 
   const bump = Date.now()
   await announcer.announce(keyPair, { bump })
@@ -75,7 +149,7 @@ test('stale announce does not overwrite a newer record', async (t) => {
   t.ok(record, 'record exists after first announce')
 
   await announcer.announce(keyPair, { bump: bump - 10_000 })
-  await delay(800)
+  await new Promise((resolve) => setTimeout(resolve, 800))
 
   const stale = await server.lookup(keyPair.publicKey)
   t.is(stale.bumped, record.bumped, 'bump is unchanged by an older announce')
@@ -83,18 +157,39 @@ test('stale announce does not overwrite a newer record', async (t) => {
 
   const newerBump = bump + 10_000
   await announcer.announce(keyPair, { bump: newerBump })
-  await delay(800)
+  await new Promise((resolve) => setTimeout(resolve, 800))
 
   const updated = await server.lookup(keyPair.publicKey)
   t.is(updated.bumped, newerBump, 'a genuinely newer announce still updates the record')
 })
 
 test('subscribing after an announce delivers the current record', async (t) => {
-  const { server, subscriber, announcer, keyPair } = await setup(t)
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  const subscriberDht = new HyperDHT({ bootstrap })
+  t.teardown(() => subscriberDht.destroy(), { order: 4000 })
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  const server = new HyperDiscovery(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+  const keyPair = crypto.keyPair()
 
   const bump = Date.now()
   await announcer.announce(keyPair, { bump })
   await waitForRecord(server, keyPair.publicKey)
+
+  const subscriber = new HyperDiscoveryClient(server.publicKey, { dht: subscriberDht })
+  t.teardown(() => subscriber.close(), { order: 2000 })
 
   const caughtUp = t.test('catch-up announce')
   caughtUp.plan(1)
@@ -109,17 +204,38 @@ test('subscribing after an announce delivers the current record', async (t) => {
 })
 
 test('since skips catch-up for older bumps', async (t) => {
-  const { server, subscriber, announcer, keyPair } = await setup(t)
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  const subscriberDht = new HyperDHT({ bootstrap })
+  t.teardown(() => subscriberDht.destroy(), { order: 4000 })
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  const server = new HyperDiscovery(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+  const keyPair = crypto.keyPair()
 
   const bump = Date.now()
   await announcer.announce(keyPair, { bump })
   await waitForRecord(server, keyPair.publicKey)
 
+  const subscriber = new HyperDiscoveryClient(server.publicKey, { dht: subscriberDht })
+  t.teardown(() => subscriber.close(), { order: 2000 })
+
   const received = []
   subscriber.on('announce', (ann) => received.push(ann.bumped))
 
   subscriber.subscribe(keyPair.publicKey, { since: bump + 1 })
-  await delay(500)
+  await new Promise((resolve) => setTimeout(resolve, 500))
   t.alike(received, [], 'no catch-up when stored bump is older than since')
 
   const newerBump = bump + 10_000
@@ -137,8 +253,29 @@ test('since skips catch-up for older bumps', async (t) => {
 test('resubscribes after server restart', async (t) => {
   t.timeout(60_000)
 
-  const { bootstrap, storage, server, serverDht, subscriber, announcer, keyPair } = await setup(t)
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  let serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  const subscriberDht = new HyperDHT({ bootstrap })
+  t.teardown(() => subscriberDht.destroy(), { order: 4000 })
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  let server = new HyperDiscovery(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
   const publicKey = Buffer.from(server.publicKey)
+
+  const subscriber = new HyperDiscoveryClient(publicKey, { dht: subscriberDht })
+  t.teardown(() => subscriber.close(), { order: 2000 })
+  const announcer = new HyperDiscoveryClient(publicKey, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+
+  const keyPair = crypto.keyPair()
 
   const connected = t.test('initial connect')
   connected.plan(2)
@@ -165,12 +302,12 @@ test('resubscribes after server restart', async (t) => {
   await server.close()
   await serverDht.destroy()
 
-  const serverDht2 = new HyperDHT({ bootstrap })
-  t.teardown(() => serverDht2.destroy(), { order: 4000 })
-  const server2 = new HyperDiscovery(storage, { dht: serverDht2 })
-  t.teardown(() => server2.close(), { order: 3000 })
-  await server2.ready()
-  t.alike(server2.publicKey, publicKey, 'restarted server keeps the same public key')
+  serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  server = new HyperDiscovery(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+  t.alike(server.publicKey, publicKey, 'restarted server keeps the same public key')
 
   await reconnected
 
@@ -193,8 +330,29 @@ test('resubscribes after server restart', async (t) => {
 test('resubscribe preserves since across server restart', async (t) => {
   t.timeout(60_000)
 
-  const { bootstrap, storage, server, serverDht, subscriber, announcer, keyPair } = await setup(t)
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  let serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  const subscriberDht = new HyperDHT({ bootstrap })
+  t.teardown(() => subscriberDht.destroy(), { order: 4000 })
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  let server = new HyperDiscovery(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
   const publicKey = Buffer.from(server.publicKey)
+
+  const subscriber = new HyperDiscoveryClient(publicKey, { dht: subscriberDht })
+  t.teardown(() => subscriber.close(), { order: 2000 })
+  const announcer = new HyperDiscoveryClient(publicKey, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+
+  const keyPair = crypto.keyPair()
 
   const connected = t.test('initial connect')
   connected.plan(2)
@@ -212,7 +370,7 @@ test('resubscribe preserves since across server restart', async (t) => {
   subscriber.on('announce', (ann) => received.push(ann.bumped))
 
   subscriber.subscribe(keyPair.publicKey, { since: bump1 + 1 })
-  await delay(500)
+  await new Promise((resolve) => setTimeout(resolve, 500))
   t.alike(received, [], 'since skips catch-up before restart')
 
   const reconnected = t.test('reconnect after restart')
@@ -223,16 +381,16 @@ test('resubscribe preserves since across server restart', async (t) => {
   await server.close()
   await serverDht.destroy()
 
-  const serverDht2 = new HyperDHT({ bootstrap })
-  t.teardown(() => serverDht2.destroy(), { order: 4000 })
-  const server2 = new HyperDiscovery(storage, { dht: serverDht2 })
-  t.teardown(() => server2.close(), { order: 3000 })
-  await server2.ready()
-  t.alike(server2.publicKey, publicKey, 'restarted server keeps the same public key')
+  serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  server = new HyperDiscovery(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+  t.alike(server.publicKey, publicKey, 'restarted server keeps the same public key')
 
   await reconnected
 
-  await delay(500)
+  await new Promise((resolve) => setTimeout(resolve, 500))
   t.alike(received, [], 'resubscribe keeps since and skips catch-up')
 
   const bump2 = bump1 + 10_000
@@ -247,53 +405,12 @@ test('resubscribe preserves since across server restart', async (t) => {
   await secondAnnounce
 })
 
-async function setup(t) {
-  const testnet = await setupTestnet()
-  const { bootstrap } = testnet
-  t.teardown(() => testnet.destroy(), { order: 5000 })
-
-  const serverDht = new HyperDHT({ bootstrap })
-  t.teardown(() => serverDht.destroy(), { order: 4000 })
-  const subscriberDht = new HyperDHT({ bootstrap })
-  t.teardown(() => subscriberDht.destroy(), { order: 4000 })
-  const announcerDht = new HyperDHT({ bootstrap })
-  t.teardown(() => announcerDht.destroy(), { order: 4000 })
-
-  const storage = await t.tmp()
-  const server = new HyperDiscovery(storage, { dht: serverDht })
-  t.teardown(() => server.close(), { order: 3000 })
-  await server.ready()
-
-  const subscriber = new HyperDiscoveryClient(server.publicKey, { dht: subscriberDht })
-  t.teardown(() => subscriber.close(), { order: 2000 })
-  const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
-  t.teardown(() => announcer.close(), { order: 2000 })
-
-  const keyPair = crypto.keyPair()
-
-  return {
-    bootstrap,
-    storage,
-    serverDht,
-    subscriberDht,
-    announcerDht,
-    server,
-    subscriber,
-    announcer,
-    keyPair
-  }
-}
-
 async function waitForRecord(server, publicKey, timeout = 5000) {
   const start = Date.now()
   while (Date.now() - start < timeout) {
     const record = await server.lookup(publicKey)
     if (record) return record
-    await delay(100)
+    await new Promise((resolve) => setTimeout(resolve, 100))
   }
   return null
-}
-
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
