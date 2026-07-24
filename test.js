@@ -251,8 +251,6 @@ test('since skips catch-up for older bumps', async (t) => {
 })
 
 test('resubscribes after server restart', async (t) => {
-  t.timeout(60_000)
-
   const testnet = await setupTestnet()
   const { bootstrap } = testnet
   t.teardown(() => testnet.destroy(), { order: 5000 })
@@ -328,8 +326,6 @@ test('resubscribes after server restart', async (t) => {
 })
 
 test('resubscribe preserves since across server restart', async (t) => {
-  t.timeout(60_000)
-
   const testnet = await setupTestnet()
   const { bootstrap } = testnet
   t.teardown(() => testnet.destroy(), { order: 5000 })
