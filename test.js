@@ -214,7 +214,17 @@ async function setup(t) {
 
   const keyPair = crypto.keyPair()
 
-  return { bootstrap, storage, serverDht, subscriberDht, announcerDht, server, subscriber, announcer, keyPair }
+  return {
+    bootstrap,
+    storage,
+    serverDht,
+    subscriberDht,
+    announcerDht,
+    server,
+    subscriber,
+    announcer,
+    keyPair
+  }
 }
 
 async function waitForRecord(server, publicKey, timeout = 5000) {
