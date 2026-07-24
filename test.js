@@ -401,6 +401,73 @@ test('resubscribe preserves since across server restart', async (t) => {
   await secondAnnounce
 })
 
+test('resubscribes after suspend and resume', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  const subscriberDht = new HyperDHT({ bootstrap })
+  t.teardown(() => subscriberDht.destroy(), { order: 4000 })
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  const server = new HyperDiscovery(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const subscriber = new HyperDiscoveryClient(server.publicKey, { dht: subscriberDht })
+  t.teardown(() => subscriber.close(), { order: 2000 })
+  const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+
+  const keyPair = crypto.keyPair()
+
+  const connected = t.test('initial connect')
+  connected.plan(1)
+  subscriber.once('connect', () => connected.pass('subscriber connected'))
+  subscriber.connect()
+  await connected
+
+  const firstAnnounce = t.test('announce before suspend')
+  firstAnnounce.plan(1)
+  subscriber.once('announce', (ann) => {
+    firstAnnounce.alike(ann.publicKey, keyPair.publicKey, 'receives announce before suspend')
+  })
+  subscriber.subscribe(keyPair.publicKey)
+  await announcer.announce(keyPair, { bump: Date.now() })
+  await firstAnnounce
+
+  await subscriber.suspend()
+
+  const bumpWhileSuspended = Date.now() + 5_000
+  await announcer.announce(keyPair, { bump: bumpWhileSuspended })
+  await new Promise((resolve) => setTimeout(resolve, 500))
+
+  const resumed = t.test('resume reconnect')
+  resumed.plan(1)
+  subscriber.once('connect', () => resumed.pass('subscriber reconnected after resume'))
+  subscriber.resume()
+  await resumed
+
+  const bumpAfterResume = Date.now() + 10_000
+  const secondAnnounce = t.test('announce after resume')
+  secondAnnounce.plan(1)
+  subscriber.on('announce', (ann) => {
+    if (ann.bumped === bumpAfterResume) {
+      secondAnnounce.alike(
+        ann.publicKey,
+        keyPair.publicKey,
+        'receives announce after resume without calling subscribe again'
+      )
+    }
+  })
+  await announcer.announce(keyPair, { bump: bumpAfterResume })
+  await secondAnnounce
+})
+
 async function waitForRecord(server, publicKey, timeout = 5000) {
   const start = Date.now()
   while (Date.now() - start < timeout) {
