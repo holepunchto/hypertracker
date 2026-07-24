@@ -311,7 +311,7 @@ class HyperDiscoveryClient extends ReadyResource {
   }
 
   _resubscribe() {
-    for (const [publicKey, opts] of this.subs) this.subscribe(publicKey, opts)
+    for (const { publicKey, opts } of this.subs.values()) this.subscribe(publicKey, opts)
   }
 
   _getChannel() {
@@ -331,7 +331,7 @@ class HyperDiscoveryClient extends ReadyResource {
   }
 
   subscribe(publicKey, { since = 0 } = {}) {
-    this.subs.set(publicKey, { since })
+    this.subs.set(b4a.toString(publicKey, 'hex'), { publicKey, opts: { since } })
     const channel = this._getChannel()
     if (!channel || this.connecting) return
     channel.messages[0].send({
@@ -341,7 +341,7 @@ class HyperDiscoveryClient extends ReadyResource {
   }
 
   unsubscribe(publicKey) {
-    this.subs.delete(publicKey)
+    this.subs.delete(b4a.toString(publicKey, 'hex'))
     const channel = this._getChannel()
     if (!channel || this.connecting) return
     channel.messages[1].send({
