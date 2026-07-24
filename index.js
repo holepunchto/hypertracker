@@ -203,7 +203,7 @@ class HyperDiscoveryClient extends ReadyResource {
     this._retryTimeout = null
     this._retryResolve = null
     this._shouldReconnect = false
-    this.subs = new Set()
+    this.subs = new Map()
   }
 
   async suspend() {
@@ -311,7 +311,7 @@ class HyperDiscoveryClient extends ReadyResource {
   }
 
   _resubscribe() {
-    for (const publicKey of this.subs) this.subscribe(publicKey)
+    for (const [publicKey, opts] of this.subs) this.subscribe(publicKey, opts)
   }
 
   _getChannel() {
@@ -331,7 +331,7 @@ class HyperDiscoveryClient extends ReadyResource {
   }
 
   subscribe(publicKey, { since = 0 } = {}) {
-    this.subs.add(publicKey)
+    this.subs.set(publicKey, { since })
     const channel = this._getChannel()
     if (!channel || this.connecting) return
     channel.messages[0].send({
