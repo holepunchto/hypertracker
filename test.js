@@ -203,6 +203,83 @@ test('subscribing after an announce delivers the current record', async (t) => {
   await caughtUp
 })
 
+test('stats', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  const subscriberDht = new HyperDHT({ bootstrap })
+  t.teardown(() => subscriberDht.destroy(), { order: 4000 })
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  const server = new HyperDiscovery(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  t.alike(
+    server.stats,
+    {
+      streamsAdded: 0,
+      streamsEnded: 0,
+      subscriptionsAdded: 0,
+      subscriptionsRemoved: 0,
+      announces: 0,
+      announcesSent: 0,
+      onsubscribeCount: 0,
+      onunsubscribeCount: 0,
+      onannounceCount: 0
+    },
+    'stats start at zero'
+  )
+
+  const subscriber = new HyperDiscoveryClient(server.publicKey, { dht: subscriberDht })
+  t.teardown(() => subscriber.close(), { order: 2000 })
+  const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+
+  const keyPair = crypto.keyPair()
+
+  const announced = t.test('announce event')
+  announced.plan(1)
+
+  subscriber.on('announce', (ann) => {
+    announced.alike(ann.publicKey, keyPair.publicKey, 'announced public key matches')
+  })
+
+  subscriber.subscribe(keyPair.publicKey)
+  await announcer.announce(keyPair)
+
+  await announced
+
+  t.is(server.stats.streamsAdded, 2, 'two streams added')
+  t.is(server.stats.streamsEnded, 0, 'no streams ended yet')
+  t.is(server.stats.subscriptionsAdded, 1, 'one subscription added')
+  t.is(server.stats.subscriptionsRemoved, 0, 'no subscriptions removed yet')
+  t.is(server.stats.announces, 1, 'one successful announce')
+  t.is(server.stats.announcesSent, 1, 'one bump sent to subscriber')
+  t.is(server.stats.onsubscribeCount, 1, 'one subscribe message')
+  t.is(server.stats.onannounceCount, 1, 'one announce message')
+  t.is(server.stats.onunsubscribeCount, 0, 'no unsubscribe yet')
+
+  subscriber.unsubscribe(keyPair.publicKey)
+  await waitFor(() => server.stats.onunsubscribeCount === 1)
+
+  t.is(server.stats.onunsubscribeCount, 1, 'one unsubscribe message')
+  t.is(server.stats.subscriptionsRemoved, 1, 'one subscription removed')
+
+  await subscriber.close()
+  await waitFor(() => server.stats.streamsEnded === 1)
+
+  t.is(server.stats.streamsAdded, 2, 'stream add count is cumulative')
+  t.is(server.stats.streamsEnded, 1, 'subscriber stream ended')
+  t.is(server.stats.subscriptionsAdded, 1, 'subscription add count is cumulative')
+  t.is(server.stats.subscriptionsRemoved, 1, 'subscription remove count is cumulative')
+})
+
 async function waitForRecord(server, publicKey, timeout = 5000) {
   const start = Date.now()
   while (Date.now() - start < timeout) {
@@ -211,4 +288,13 @@ async function waitForRecord(server, publicKey, timeout = 5000) {
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
   return null
+}
+
+async function waitFor(condition, timeout = 5000) {
+  const start = Date.now()
+  while (Date.now() - start < timeout) {
+    if (condition()) return
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  throw new Error('timed out waiting for condition')
 }
