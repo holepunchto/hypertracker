@@ -33,6 +33,7 @@ class HyperDiscovery extends ReadyResource {
       connections: 0,
       subscriptions: 0,
       announces: 0,
+      sentAnnounces: 0,
       onsubscribeCount: 0,
       onunsubscribeCount: 0,
       onannounceCount: 0,
@@ -200,6 +201,7 @@ class HyperDiscovery extends ReadyResource {
       for (const [ch, since] of subs) {
         if (ch === channel) continue
         if (doc.bumped < since) continue
+        this.stats.sentAnnounces++
         ch.messages[3].send(doc)
       }
     }

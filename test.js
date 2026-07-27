@@ -226,6 +226,7 @@ test('stats', async (t) => {
       connections: 0,
       subscriptions: 0,
       announces: 0,
+      sentAnnounces: 0,
       onsubscribeCount: 0,
       onunsubscribeCount: 0,
       onannounceCount: 0
@@ -255,6 +256,7 @@ test('stats', async (t) => {
   t.is(server.stats.connections, 2, 'two client connections')
   t.is(server.stats.subscriptions, 1, 'one active subscription')
   t.is(server.stats.announces, 1, 'one successful announce')
+  t.is(server.stats.sentAnnounces, 1, 'one bump sent to subscriber')
   t.is(server.stats.onsubscribeCount, 1, 'one subscribe message')
   t.is(server.stats.onannounceCount, 1, 'one announce message')
   t.is(server.stats.onunsubscribeCount, 0, 'no unsubscribe yet')
