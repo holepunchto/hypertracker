@@ -127,7 +127,7 @@ class HyperDiscovery extends ReadyResource {
           { encoding: Bump, onmessage: unsupported }
         ],
         onclose() {
-          this.stats.connections--
+          tracker.stats.connections--
           for (const id of subs) {
             tracker._removeSub(channel, id)
           }
@@ -139,7 +139,7 @@ class HyperDiscovery extends ReadyResource {
       channel.open()
 
       async function onsubscribe(m) {
-        this.stats.onsubscribeCount++
+        tracker.stats.onsubscribeCount++
         const id = b4a.toString(m.publicKey, 'hex')
         subs.add(id)
         tracker._addSub(channel, id, m.since)
@@ -149,14 +149,14 @@ class HyperDiscovery extends ReadyResource {
       }
 
       function onunsubscribe(m) {
-        this.stats.onunsubscribeCount++
+        tracker.stats.onunsubscribeCount++
         const id = b4a.toString(m.publicKey, 'hex')
         subs.delete(id)
         tracker._removeSub(channel, id)
       }
 
       function onannounce(m) {
-        this.stats.onannounceCount++
+        tracker.stats.onannounceCount++
         return tracker.announce(m, channel)
       }
     }
