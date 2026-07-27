@@ -36,7 +36,7 @@ class HyperDiscovery extends ReadyResource {
       sentAnnounces: 0,
       onsubscribeCount: 0,
       onunsubscribeCount: 0,
-      onannounceCount: 0,
+      onannounceCount: 0
     }
 
     this.ready().catch(noop)
