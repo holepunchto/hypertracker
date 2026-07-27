@@ -29,6 +29,15 @@ class HyperDiscovery extends ReadyResource {
     this._server = null
     this._manifest = null
 
+    this.stats = {
+      connections: 0,
+      subscriptions: 0,
+      announces: 0,
+      onsubscribeCount: 0,
+      onunsubscribeCount: 0,
+      onannounceCount: 0,
+    }
+
     this.ready().catch(noop)
   }
 
@@ -87,17 +96,20 @@ class HyperDiscovery extends ReadyResource {
       this.subs.set(id, subs)
     }
 
+    this.stats.subscriptions++
     subs.set(channel, since)
   }
 
   _removeSub(channel, id) {
     const subs = this.subs.get(id)
     if (!subs) return
+    this.stats.subscriptions--
     subs.delete(channel)
     if (!subs.size) this.subs.delete(id)
   }
 
   addStream(stream) {
+    this.stats.connections++
     const muxer = getMuxer(stream)
     const tracker = this
     const subs = new Set()
@@ -115,7 +127,10 @@ class HyperDiscovery extends ReadyResource {
           { encoding: Bump, onmessage: unsupported }
         ],
         onclose() {
-          for (const id of subs) tracker._removeSub(channel, id)
+          this.stats.connections--
+          for (const id of subs) {
+            tracker._removeSub(channel, id)
+          }
         }
       })
 
@@ -124,6 +139,7 @@ class HyperDiscovery extends ReadyResource {
       channel.open()
 
       async function onsubscribe(m) {
+        this.stats.onsubscribeCount++
         const id = b4a.toString(m.publicKey, 'hex')
         subs.add(id)
         tracker._addSub(channel, id, m.since)
@@ -133,12 +149,14 @@ class HyperDiscovery extends ReadyResource {
       }
 
       function onunsubscribe(m) {
+        this.stats.onunsubscribeCount++
         const id = b4a.toString(m.publicKey, 'hex')
         subs.delete(id)
         tracker._removeSub(channel, id)
       }
 
       function onannounce(m) {
+        this.stats.onannounceCount++
         return tracker.announce(m, channel)
       }
     }
@@ -165,6 +183,8 @@ class HyperDiscovery extends ReadyResource {
 
     const v = await this.db.get('@hyperdiscovery/swarms', { publicKey: m.publicKey })
     if (v && v.bumped >= m.announce.bump) return false
+
+    this.stats.announces++
 
     const doc = {
       publicKey: m.publicKey,
