@@ -203,6 +203,49 @@ test('subscribing after an announce delivers the current record', async (t) => {
   await caughtUp
 })
 
+test('stats', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  const subscriberDht = new HyperDHT({ bootstrap })
+  t.teardown(() => subscriberDht.destroy(), { order: 4000 })
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  const server = new HyperDiscovery(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const subscriber = new HyperDiscoveryClient(server.publicKey, { dht: subscriberDht })
+  t.teardown(() => subscriber.close(), { order: 2000 })
+  const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+
+  const keyPair = crypto.keyPair()
+
+  const announced = t.test('announce event')
+  announced.plan(1)
+
+  subscriber.on('announce', (ann) => {
+    announced.alike(ann.publicKey, keyPair.publicKey, 'announced public key matches')
+  })
+
+  subscriber.subscribe(keyPair.publicKey)
+  await announcer.announce(keyPair)
+
+  await announced
+
+  t.is(server.stats.announces, 1, 'announces count is 1')
+  t.is(server.stats.subscriptions, 1, 'subscriptions count is 1')
+  t.is(server.stats.connections, 2, 'connections count is 0')
+  t.is(server.stats.onsubscribeCount, 1, 'onsubscribe count is 1')
+  t.is(server.stats.onannounceCount, 1, 'onannounce count is 1')
+})
+
 async function waitForRecord(server, publicKey, timeout = 5000) {
   const start = Date.now()
   while (Date.now() - start < timeout) {
