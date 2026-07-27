@@ -220,6 +220,19 @@ test('stats', async (t) => {
   t.teardown(() => server.close(), { order: 3000 })
   await server.ready()
 
+  t.alike(
+    server.stats,
+    {
+      connections: 0,
+      subscriptions: 0,
+      announces: 0,
+      onsubscribeCount: 0,
+      onunsubscribeCount: 0,
+      onannounceCount: 0
+    },
+    'stats start at zero'
+  )
+
   const subscriber = new HyperDiscoveryClient(server.publicKey, { dht: subscriberDht })
   t.teardown(() => subscriber.close(), { order: 2000 })
   const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
@@ -239,11 +252,24 @@ test('stats', async (t) => {
 
   await announced
 
-  t.is(server.stats.announces, 1, 'announces count is 1')
-  t.is(server.stats.subscriptions, 1, 'subscriptions count is 1')
-  t.is(server.stats.connections, 2, 'connections count is 0')
-  t.is(server.stats.onsubscribeCount, 1, 'onsubscribe count is 1')
-  t.is(server.stats.onannounceCount, 1, 'onannounce count is 1')
+  t.is(server.stats.connections, 2, 'two client connections')
+  t.is(server.stats.subscriptions, 1, 'one active subscription')
+  t.is(server.stats.announces, 1, 'one successful announce')
+  t.is(server.stats.onsubscribeCount, 1, 'one subscribe message')
+  t.is(server.stats.onannounceCount, 1, 'one announce message')
+  t.is(server.stats.onunsubscribeCount, 0, 'no unsubscribe yet')
+
+  subscriber.unsubscribe(keyPair.publicKey)
+  await waitFor(() => server.stats.onunsubscribeCount === 1)
+
+  t.is(server.stats.onunsubscribeCount, 1, 'one unsubscribe message')
+  t.is(server.stats.subscriptions, 0, 'subscription removed')
+
+  await subscriber.close()
+  await waitFor(() => server.stats.connections === 1)
+
+  t.is(server.stats.connections, 1, 'subscriber connection closed')
+  t.is(server.stats.subscriptions, 0, 'subscriptions stay at zero after disconnect')
 })
 
 async function waitForRecord(server, publicKey, timeout = 5000) {
@@ -254,4 +280,13 @@ async function waitForRecord(server, publicKey, timeout = 5000) {
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
   return null
+}
+
+async function waitFor(condition, timeout = 5000) {
+  const start = Date.now()
+  while (Date.now() - start < timeout) {
+    if (condition()) return
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  throw new Error('timed out waiting for condition')
 }
