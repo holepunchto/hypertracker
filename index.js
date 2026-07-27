@@ -31,9 +31,11 @@ class HyperDiscovery extends ReadyResource {
 
     this.stats = {
       streamsAdded: 0,
-      subscriptions: 0,
+      streamsEnded: 0,
+      subscriptionsAdded: 0,
+      subscriptionsRemoved: 0,
       announces: 0,
-      sentAnnounces: 0,
+      announcesSent: 0,
       onsubscribeCount: 0,
       onunsubscribeCount: 0,
       onannounceCount: 0
@@ -97,14 +99,14 @@ class HyperDiscovery extends ReadyResource {
       this.subs.set(id, subs)
     }
 
-    this.stats.subscriptions++
+    this.stats.subscriptionsAdded++
     subs.set(channel, since)
   }
 
   _removeSub(channel, id) {
     const subs = this.subs.get(id)
     if (!subs) return
-    this.stats.subscriptions--
+    this.stats.subscriptionsRemoved++
     subs.delete(channel)
     if (!subs.size) this.subs.delete(id)
   }
@@ -128,7 +130,7 @@ class HyperDiscovery extends ReadyResource {
           { encoding: Bump, onmessage: unsupported }
         ],
         onclose() {
-          tracker.stats.streamsAdded--
+          tracker.stats.streamsEnded++
           for (const id of subs) {
             tracker._removeSub(channel, id)
           }
@@ -201,7 +203,7 @@ class HyperDiscovery extends ReadyResource {
       for (const [ch, since] of subs) {
         if (ch === channel) continue
         if (doc.bumped < since) continue
-        this.stats.sentAnnounces++
+        this.stats.announcesSent++
         ch.messages[3].send(doc)
       }
     }

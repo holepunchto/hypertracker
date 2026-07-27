@@ -223,10 +223,12 @@ test('stats', async (t) => {
   t.alike(
     server.stats,
     {
-      connections: 0,
-      subscriptions: 0,
+      streamsAdded: 0,
+      streamsEnded: 0,
+      subscriptionsAdded: 0,
+      subscriptionsRemoved: 0,
       announces: 0,
-      sentAnnounces: 0,
+      announcesSent: 0,
       onsubscribeCount: 0,
       onunsubscribeCount: 0,
       onannounceCount: 0
@@ -253,10 +255,12 @@ test('stats', async (t) => {
 
   await announced
 
-  t.is(server.stats.streamsAdded, 2, 'two client connections')
-  t.is(server.stats.subscriptions, 1, 'one active subscription')
+  t.is(server.stats.streamsAdded, 2, 'two streams added')
+  t.is(server.stats.streamsEnded, 0, 'no streams ended yet')
+  t.is(server.stats.subscriptionsAdded, 1, 'one subscription added')
+  t.is(server.stats.subscriptionsRemoved, 0, 'no subscriptions removed yet')
   t.is(server.stats.announces, 1, 'one successful announce')
-  t.is(server.stats.sentAnnounces, 1, 'one bump sent to subscriber')
+  t.is(server.stats.announcesSent, 1, 'one bump sent to subscriber')
   t.is(server.stats.onsubscribeCount, 1, 'one subscribe message')
   t.is(server.stats.onannounceCount, 1, 'one announce message')
   t.is(server.stats.onunsubscribeCount, 0, 'no unsubscribe yet')
@@ -265,13 +269,15 @@ test('stats', async (t) => {
   await waitFor(() => server.stats.onunsubscribeCount === 1)
 
   t.is(server.stats.onunsubscribeCount, 1, 'one unsubscribe message')
-  t.is(server.stats.subscriptions, 0, 'subscription removed')
+  t.is(server.stats.subscriptionsRemoved, 1, 'one subscription removed')
 
   await subscriber.close()
-  await waitFor(() => server.stats.streamsAdded === 1)
+  await waitFor(() => server.stats.streamsEnded === 1)
 
-  t.is(server.stats.streamsAdded, 1, 'subscriber connection closed')
-  t.is(server.stats.subscriptions, 0, 'subscriptions stay at zero after disconnect')
+  t.is(server.stats.streamsAdded, 2, 'stream add count is cumulative')
+  t.is(server.stats.streamsEnded, 1, 'subscriber stream ended')
+  t.is(server.stats.subscriptionsAdded, 1, 'subscription add count is cumulative')
+  t.is(server.stats.subscriptionsRemoved, 1, 'subscription remove count is cumulative')
 })
 
 async function waitForRecord(server, publicKey, timeout = 5000) {
