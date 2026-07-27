@@ -30,7 +30,7 @@ class HyperDiscovery extends ReadyResource {
     this._manifest = null
 
     this.stats = {
-      connections: 0,
+      streamsAdded: 0,
       subscriptions: 0,
       announces: 0,
       sentAnnounces: 0,
@@ -110,7 +110,7 @@ class HyperDiscovery extends ReadyResource {
   }
 
   addStream(stream) {
-    this.stats.connections++
+    this.stats.streamsAdded++
     const muxer = getMuxer(stream)
     const tracker = this
     const subs = new Set()
@@ -128,7 +128,7 @@ class HyperDiscovery extends ReadyResource {
           { encoding: Bump, onmessage: unsupported }
         ],
         onclose() {
-          tracker.stats.connections--
+          tracker.stats.streamsAdded--
           for (const id of subs) {
             tracker._removeSub(channel, id)
           }

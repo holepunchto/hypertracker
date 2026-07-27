@@ -253,7 +253,7 @@ test('stats', async (t) => {
 
   await announced
 
-  t.is(server.stats.connections, 2, 'two client connections')
+  t.is(server.stats.streamsAdded, 2, 'two client connections')
   t.is(server.stats.subscriptions, 1, 'one active subscription')
   t.is(server.stats.announces, 1, 'one successful announce')
   t.is(server.stats.sentAnnounces, 1, 'one bump sent to subscriber')
@@ -268,9 +268,9 @@ test('stats', async (t) => {
   t.is(server.stats.subscriptions, 0, 'subscription removed')
 
   await subscriber.close()
-  await waitFor(() => server.stats.connections === 1)
+  await waitFor(() => server.stats.streamsAdded === 1)
 
-  t.is(server.stats.connections, 1, 'subscriber connection closed')
+  t.is(server.stats.streamsAdded, 1, 'subscriber connection closed')
   t.is(server.stats.subscriptions, 0, 'subscriptions stay at zero after disconnect')
 })
 
