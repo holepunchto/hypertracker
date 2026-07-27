@@ -131,9 +131,7 @@ class HyperDiscovery extends ReadyResource {
         ],
         onclose() {
           tracker.stats.streamsEnded++
-          for (const id of subs) {
-            tracker._removeSub(channel, id)
-          }
+          for (const id of subs) tracker._removeSub(channel, id)
         }
       })
 
