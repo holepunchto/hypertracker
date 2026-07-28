@@ -32,6 +32,7 @@
   "devDependencies": {
     "brittle": "^4.1.0",
     "lunte": "^1.8.4",
-    "prettier-config-holepunch": "^2.0.0"
+    "prettier-config-holepunch": "^2.0.0",
+    "prom-client": "^15.1.3"
   }
 }

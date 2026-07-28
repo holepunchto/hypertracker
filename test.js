@@ -2,6 +2,7 @@ const test = require('brittle')
 const crypto = require('hypercore-crypto')
 const HyperDHT = require('hyperdht')
 const setupTestnet = require('hyperdht/testnet')
+const promClient = require('prom-client')
 
 const { HyperDiscovery, HyperDiscoveryClient } = require('.')
 
@@ -278,6 +279,57 @@ test('stats', async (t) => {
   t.is(server.stats.streamsEnded, 1, 'subscriber stream ended')
   t.is(server.stats.subscriptionsAdded, 1, 'subscription add count is cumulative')
   t.is(server.stats.subscriptionsRemoved, 1, 'subscription remove count is cumulative')
+})
+
+test('metrics', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  const subscriberDht = new HyperDHT({ bootstrap })
+  t.teardown(() => subscriberDht.destroy(), { order: 4000 })
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  const server = new HyperDiscovery(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  promClient.register.clear()
+  server.registerMetrics(promClient)
+  t.teardown(() => promClient.register.clear())
+
+  const subscriber = new HyperDiscoveryClient(server.publicKey, { dht: subscriberDht })
+  t.teardown(() => subscriber.close(), { order: 2000 })
+  const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+
+  const keyPair = crypto.keyPair()
+
+  subscriber.subscribe(keyPair.publicKey)
+  await announcer.announce(keyPair)
+  await waitFor(() => server.stats.announces === 1)
+
+  subscriber.unsubscribe(keyPair.publicKey)
+  await waitFor(() => server.stats.onunsubscribeCount === 1)
+
+  await subscriber.close()
+  await waitFor(() => server.stats.streamsEnded === 1)
+
+  const metrics = await promClient.register.metrics()
+
+  t.ok(metrics.includes('hyperdiscovery_streams_added 2'), 'streams added metric')
+  t.ok(metrics.includes('hyperdiscovery_streams_ended 1'), 'streams ended metric')
+  t.ok(metrics.includes('hyperdiscovery_subscriptions_added 1'), 'subscriptions added metric')
+  t.ok(metrics.includes('hyperdiscovery_subscriptions_removed 1'), 'subscriptions removed metric')
+  t.ok(metrics.includes('hyperdiscovery_announces 1'), 'announces metric')
+  t.ok(metrics.includes('hyperdiscovery_announces_sent 1'), 'announces sent metric')
+  t.ok(metrics.includes('hyperdiscovery_onsubscribe_count 1'), 'onsubscribe count metric')
+  t.ok(metrics.includes('hyperdiscovery_onunsubscribe_count 1'), 'onunsubscribe count metric')
+  t.ok(metrics.includes('hyperdiscovery_onannounce_count 1'), 'onannounce count metric')
 })
 
 async function waitForRecord(server, publicKey, timeout = 5000) {

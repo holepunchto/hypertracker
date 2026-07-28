@@ -208,6 +208,82 @@ class HyperDiscovery extends ReadyResource {
 
     return true
   }
+
+  registerMetrics(promClient) {
+    const tracker = this
+
+    new promClient.Gauge({
+      name: 'hyperdiscovery_streams_added',
+      help: 'Hyperdiscovery streams added',
+      collect() {
+        this.set(tracker.stats.streamsAdded)
+      }
+    })
+
+    new promClient.Gauge({
+      name: 'hyperdiscovery_streams_ended',
+      help: 'Hyperdiscovery streams ended',
+      collect() {
+        this.set(tracker.stats.streamsEnded)
+      }
+    })
+
+    new promClient.Gauge({
+      name: 'hyperdiscovery_subscriptions_added',
+      help: 'Hyperdiscovery subscriptions added',
+      collect() {
+        this.set(tracker.stats.subscriptionsAdded)
+      }
+    })
+
+    new promClient.Gauge({
+      name: 'hyperdiscovery_subscriptions_removed',
+      help: 'Hyperdiscovery subscriptions removed',
+      collect() {
+        this.set(tracker.stats.subscriptionsRemoved)
+      }
+    })
+
+    new promClient.Gauge({
+      name: 'hyperdiscovery_announces',
+      help: 'Hyperdiscovery announces',
+      collect() {
+        this.set(tracker.stats.announces)
+      }
+    })
+
+    new promClient.Gauge({
+      name: 'hyperdiscovery_announces_sent',
+      help: 'Hyperdiscovery announces sent',
+      collect() {
+        this.set(tracker.stats.announcesSent)
+      }
+    })
+
+    new promClient.Gauge({
+      name: 'hyperdiscovery_onsubscribe_count',
+      help: 'Hyperdiscovery onsubscribe count',
+      collect() {
+        this.set(tracker.stats.onsubscribeCount)
+      }
+    })
+
+    new promClient.Gauge({
+      name: 'hyperdiscovery_onunsubscribe_count',
+      help: 'Hyperdiscovery onunsubscribe count',
+      collect() {
+        this.set(tracker.stats.onunsubscribeCount)
+      }
+    })
+
+    new promClient.Gauge({
+      name: 'hyperdiscovery_onannounce_count',
+      help: 'Hyperdiscovery onannounce count',
+      collect() {
+        this.set(tracker.stats.onannounceCount)
+      }
+    })
+  }
 }
 
 class HyperDiscoveryClient extends ReadyResource {
