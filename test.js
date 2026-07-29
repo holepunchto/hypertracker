@@ -1,13 +1,8 @@
-if (global.Bare) {
-  require('bare-process/global')
-}
 const test = require('brittle')
 const crypto = require('hypercore-crypto')
 const HyperDHT = require('hyperdht')
 const setupTestnet = require('hyperdht/testnet')
-const promClient = require('prom-client', {
-  with: { imports: './package.json' }
-})
+const promClient = require('prom-client')
 
 const { HyperDiscovery, HyperDiscoveryClient } = require('.')
 
