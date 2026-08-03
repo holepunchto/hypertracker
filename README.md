@@ -1,13 +1,13 @@
-# hyperdiscovery
+# hypertracker
 
 ```
-npm install @holepunchto/hyperdiscovery
+npm install hypertracker
 ```
 
 ## Usage
 
 ```js
-const Hyperdiscovery = require('@holepunchto/hyperdiscovery')
+const Hyperdiscovery = require('hypertracker')
 ```
 
 ## License
