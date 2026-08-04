@@ -12,11 +12,11 @@ const HyperDB = require('hyperdb')
 const [NS_ANNOUNCE] = crypto.namespace('hyperdiscovery', 1)
 const TIME_SLACK = 60_000
 
-const AnnouncePayload = getEncoding('@hyperdiscovery/announce')
-const Announce = getEncoding('@hyperdiscovery/announce-to-swarm')
-const Subscribe = getEncoding('@hyperdiscovery/subscribe-to-swarm')
-const Unsubscribe = getEncoding('@hyperdiscovery/unsubscribe-to-swarm')
-const Bump = getEncoding('@hyperdiscovery/bump-from-swarm')
+const AnnouncePayload = getEncoding('@hypertracker/announce')
+const Announce = getEncoding('@hypertracker/announce-to-swarm')
+const Subscribe = getEncoding('@hypertracker/subscribe-to-swarm')
+const Unsubscribe = getEncoding('@hypertracker/unsubscribe-to-swarm')
+const Bump = getEncoding('@hypertracker/bump-from-swarm')
 
 class HyperTracker extends ReadyResource {
   constructor(storage, { bootstrap, dht = new HyperDHT({ bootstrap }) } = {}) {
@@ -62,11 +62,11 @@ class HyperTracker extends ReadyResource {
   }
 
   async _init() {
-    this._manifest = await this.db.get('@hyperdiscovery/manifest')
+    this._manifest = await this.db.get('@hypertracker/manifest')
     if (this._manifest) return
 
     this._manifest = { version: 0, seed: crypto.randomBytes(32) }
-    await this.db.insert('@hyperdiscovery/manifest', this._manifest)
+    await this.db.insert('@hypertracker/manifest', this._manifest)
     await this.db.flush()
   }
 
@@ -169,7 +169,7 @@ class HyperTracker extends ReadyResource {
   }
 
   async lookup(publicKey) {
-    const v = await this.db.get('@hyperdiscovery/swarms', { publicKey })
+    const v = await this.db.get('@hypertracker/swarms', { publicKey })
     return v
   }
 
@@ -187,7 +187,7 @@ class HyperTracker extends ReadyResource {
     if (Date.now() + TIME_SLACK > m.announce.bumped) return false
     if (!crypto.verify(state.buffer, m.signature, m.publicKey)) return false
 
-    const v = await this.db.get('@hyperdiscovery/swarms', { publicKey: m.publicKey })
+    const v = await this.db.get('@hypertracker/swarms', { publicKey: m.publicKey })
     if (v && v.bumped >= m.announce.bump) return false
 
     this.stats.announces++
@@ -199,7 +199,7 @@ class HyperTracker extends ReadyResource {
       signature: m.signature
     }
 
-    await this.db.insert('@hyperdiscovery/swarms', doc)
+    await this.db.insert('@hypertracker/swarms', doc)
 
     const subs = this.subs.get(b4a.toString(m.publicKey, 'hex'))
     if (subs) {

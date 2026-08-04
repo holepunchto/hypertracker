@@ -2,6 +2,7 @@
 // Schema Version: 1
 /* eslint-disable camelcase */
 /* eslint-disable quotes */
+/* eslint-disable space-before-function-paren */
 
 const { c } = require('hyperschema/runtime')
 
@@ -10,7 +11,7 @@ const VERSION = 1
 // eslint-disable-next-line no-unused-vars
 let version = VERSION
 
-// @hyperdiscovery/manifest
+// @hypertracker/manifest
 const encoding0 = {
   preencode(state, m) {
     c.uint.preencode(state, m.version)
@@ -31,7 +32,7 @@ const encoding0 = {
   }
 }
 
-// @hyperdiscovery/swarm
+// @hypertracker/swarm
 const encoding1 = {
   preencode(state, m) {
     c.fixed32.preencode(state, m.publicKey)
@@ -64,7 +65,7 @@ const encoding1 = {
   }
 }
 
-// @hyperdiscovery/announce
+// @hypertracker/announce
 const encoding2 = {
   preencode(state, m) {
     state.end++ // max flag is 1 so always one byte
@@ -87,10 +88,10 @@ const encoding2 = {
   }
 }
 
-// @hyperdiscovery/announce-to-swarm.announce
+// @hypertracker/announce-to-swarm.announce
 const encoding3_1 = c.frame(encoding2)
 
-// @hyperdiscovery/announce-to-swarm
+// @hypertracker/announce-to-swarm
 const encoding3 = {
   preencode(state, m) {
     c.fixed32.preencode(state, m.publicKey)
@@ -115,7 +116,7 @@ const encoding3 = {
   }
 }
 
-// @hyperdiscovery/subscribe-to-swarm
+// @hypertracker/subscribe-to-swarm
 const encoding4 = {
   preencode(state, m) {
     c.fixed32.preencode(state, m.publicKey)
@@ -136,7 +137,7 @@ const encoding4 = {
   }
 }
 
-// @hyperdiscovery/unsubscribe-to-swarm
+// @hypertracker/unsubscribe-to-swarm
 const encoding5 = {
   preencode(state, m) {
     c.fixed32.preencode(state, m.publicKey)
@@ -153,7 +154,7 @@ const encoding5 = {
   }
 }
 
-// @hyperdiscovery/bump-from-swarm
+// @hypertracker/bump-from-swarm
 const encoding6 = {
   preencode(state, m) {
     c.fixed32.preencode(state, m.publicKey)
@@ -174,7 +175,7 @@ const encoding6 = {
   }
 }
 
-// @hyperdiscovery/swarm/hyperdb#1
+// @hypertracker/swarm/hyperdb#1
 const encoding7 = {
   preencode(state, m) {
     state.end++ // max flag is 4 so always one byte
@@ -227,21 +228,21 @@ function getEnum(name) {
 
 function getEncoding(name) {
   switch (name) {
-    case '@hyperdiscovery/manifest':
+    case '@hypertracker/manifest':
       return encoding0
-    case '@hyperdiscovery/swarm':
+    case '@hypertracker/swarm':
       return encoding1
-    case '@hyperdiscovery/announce':
+    case '@hypertracker/announce':
       return encoding2
-    case '@hyperdiscovery/announce-to-swarm':
+    case '@hypertracker/announce-to-swarm':
       return encoding3
-    case '@hyperdiscovery/subscribe-to-swarm':
+    case '@hypertracker/subscribe-to-swarm':
       return encoding4
-    case '@hyperdiscovery/unsubscribe-to-swarm':
+    case '@hypertracker/unsubscribe-to-swarm':
       return encoding5
-    case '@hyperdiscovery/bump-from-swarm':
+    case '@hypertracker/bump-from-swarm':
       return encoding6
-    case '@hyperdiscovery/swarm/hyperdb#1':
+    case '@hypertracker/swarm/hyperdb#1':
       return encoding7
     default:
       throw new Error('Encoder not found ' + name)
