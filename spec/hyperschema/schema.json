@@ -3,7 +3,7 @@
   "schema": [
     {
       "name": "manifest",
-      "namespace": "hypertracker",
+      "namespace": "hyperdiscovery",
       "compact": false,
       "flagsPosition": -1,
       "fields": [
@@ -23,7 +23,7 @@
     },
     {
       "name": "swarm",
-      "namespace": "hypertracker",
+      "namespace": "hyperdiscovery",
       "compact": false,
       "flagsPosition": 1,
       "fields": [
@@ -52,7 +52,7 @@
     },
     {
       "name": "announce",
-      "namespace": "hypertracker",
+      "namespace": "hyperdiscovery",
       "compact": false,
       "flagsPosition": 0,
       "fields": [
@@ -65,7 +65,7 @@
     },
     {
       "name": "announce-to-swarm",
-      "namespace": "hypertracker",
+      "namespace": "hyperdiscovery",
       "compact": false,
       "flagsPosition": -1,
       "fields": [
@@ -78,7 +78,7 @@
         {
           "name": "announce",
           "required": true,
-          "type": "@hypertracker/announce",
+          "type": "@hyperdiscovery/announce",
           "version": 1
         },
         {
@@ -91,7 +91,7 @@
     },
     {
       "name": "subscribe-to-swarm",
-      "namespace": "hypertracker",
+      "namespace": "hyperdiscovery",
       "compact": false,
       "flagsPosition": -1,
       "fields": [
@@ -111,7 +111,7 @@
     },
     {
       "name": "unsubscribe-to-swarm",
-      "namespace": "hypertracker",
+      "namespace": "hyperdiscovery",
       "compact": false,
       "flagsPosition": -1,
       "fields": [
@@ -125,7 +125,7 @@
     },
     {
       "name": "bump-from-swarm",
-      "namespace": "hypertracker",
+      "namespace": "hyperdiscovery",
       "compact": false,
       "flagsPosition": -1,
       "fields": [

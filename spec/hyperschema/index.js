@@ -2,7 +2,6 @@
 // Schema Version: 1
 /* eslint-disable camelcase */
 /* eslint-disable quotes */
-/* eslint-disable space-before-function-paren */
 
 const { c } = require('hyperschema/runtime')
 
@@ -11,7 +10,7 @@ const VERSION = 1
 // eslint-disable-next-line no-unused-vars
 let version = VERSION
 
-// @hypertracker/manifest
+// @hyperdiscovery/manifest
 const encoding0 = {
   preencode(state, m) {
     c.uint.preencode(state, m.version)
@@ -32,7 +31,7 @@ const encoding0 = {
   }
 }
 
-// @hypertracker/swarm
+// @hyperdiscovery/swarm
 const encoding1 = {
   preencode(state, m) {
     c.fixed32.preencode(state, m.publicKey)
@@ -65,7 +64,7 @@ const encoding1 = {
   }
 }
 
-// @hypertracker/announce
+// @hyperdiscovery/announce
 const encoding2 = {
   preencode(state, m) {
     state.end++ // max flag is 1 so always one byte
@@ -88,10 +87,10 @@ const encoding2 = {
   }
 }
 
-// @hypertracker/announce-to-swarm.announce
+// @hyperdiscovery/announce-to-swarm.announce
 const encoding3_1 = c.frame(encoding2)
 
-// @hypertracker/announce-to-swarm
+// @hyperdiscovery/announce-to-swarm
 const encoding3 = {
   preencode(state, m) {
     c.fixed32.preencode(state, m.publicKey)
@@ -116,7 +115,7 @@ const encoding3 = {
   }
 }
 
-// @hypertracker/subscribe-to-swarm
+// @hyperdiscovery/subscribe-to-swarm
 const encoding4 = {
   preencode(state, m) {
     c.fixed32.preencode(state, m.publicKey)
@@ -137,7 +136,7 @@ const encoding4 = {
   }
 }
 
-// @hypertracker/unsubscribe-to-swarm
+// @hyperdiscovery/unsubscribe-to-swarm
 const encoding5 = {
   preencode(state, m) {
     c.fixed32.preencode(state, m.publicKey)
@@ -154,7 +153,7 @@ const encoding5 = {
   }
 }
 
-// @hypertracker/bump-from-swarm
+// @hyperdiscovery/bump-from-swarm
 const encoding6 = {
   preencode(state, m) {
     c.fixed32.preencode(state, m.publicKey)
@@ -198,19 +197,19 @@ function getEnum(name) {
 
 function getEncoding(name) {
   switch (name) {
-    case '@hypertracker/manifest':
+    case '@hyperdiscovery/manifest':
       return encoding0
-    case '@hypertracker/swarm':
+    case '@hyperdiscovery/swarm':
       return encoding1
-    case '@hypertracker/announce':
+    case '@hyperdiscovery/announce':
       return encoding2
-    case '@hypertracker/announce-to-swarm':
+    case '@hyperdiscovery/announce-to-swarm':
       return encoding3
-    case '@hypertracker/subscribe-to-swarm':
+    case '@hyperdiscovery/subscribe-to-swarm':
       return encoding4
-    case '@hypertracker/unsubscribe-to-swarm':
+    case '@hyperdiscovery/unsubscribe-to-swarm':
       return encoding5
-    case '@hypertracker/bump-from-swarm':
+    case '@hyperdiscovery/bump-from-swarm':
       return encoding6
     default:
       throw new Error('Encoder not found ' + name)
