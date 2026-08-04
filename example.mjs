@@ -1,14 +1,14 @@
 import createTestnet from 'hyperdht/testnet.js'
 import crypto from 'hypercore-crypto'
-import { HyperDiscovery, HyperDiscoveryClient } from './index.js'
+import { HyperTracker, HyperTrackerClient } from './index.js'
 
 const testnet = await createTestnet()
 
-const s = new HyperDiscovery('/tmp/hyperdiscovery', { bootstrap: testnet.bootstrap })
+const s = new HyperTracker('/tmp/hypertracker', { bootstrap: testnet.bootstrap })
 await s.ready()
 
-const p1 = new HyperDiscoveryClient(s.publicKey, { bootstrap: testnet.bootstrap })
-const p2 = new HyperDiscoveryClient(s.publicKey, { bootstrap: testnet.bootstrap })
+const p1 = new HyperTrackerClient(s.publicKey, { bootstrap: testnet.bootstrap })
+const p2 = new HyperTrackerClient(s.publicKey, { bootstrap: testnet.bootstrap })
 
 const k = crypto.keyPair()
 

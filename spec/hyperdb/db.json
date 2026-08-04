@@ -1,36 +1,42 @@
 {
-  "version": 0,
+  "version": 1,
   "offset": 0,
   "schema": [
     {
       "name": "manifest",
-      "namespace": "hyperdiscovery",
+      "namespace": "hypertracker",
       "id": 0,
       "type": 1,
+      "version": 1,
+      "versionField": null,
       "indexes": [],
-      "schema": "@hyperdiscovery/manifest",
+      "schema": "@hypertracker/manifest",
       "derived": false,
       "key": [],
       "trigger": null
     },
     {
       "name": "swarms",
-      "namespace": "hyperdiscovery",
+      "namespace": "hypertracker",
       "id": 1,
       "type": 1,
-      "indexes": ["@hyperdiscovery/swarms-by-updated"],
-      "schema": "@hyperdiscovery/swarm",
+      "version": 1,
+      "versionField": null,
+      "indexes": ["@hypertracker/swarms-by-updated"],
+      "schema": "@hypertracker/swarm",
       "derived": false,
       "key": ["publicKey"],
       "trigger": null
     },
     {
       "name": "swarms-by-updated",
-      "namespace": "hyperdiscovery",
+      "namespace": "hypertracker",
       "id": 2,
       "type": 2,
-      "collection": "@hyperdiscovery/swarms",
+      "version": 1,
+      "collection": "@hypertracker/swarms",
       "unique": true,
+      "deprecated": false,
       "key": ["updated"]
     }
   ]
