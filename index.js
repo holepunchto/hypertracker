@@ -119,12 +119,15 @@ class HyperTracker extends ReadyResource {
     const tracker = this
     const subs = new Set()
 
-    muxer.pair({ protocol: 'hypertracker' }, onpair)
+    // Keep the pre-rename protocol name here: it's the Protomux handshake
+    // string both sides pair on, so changing it breaks pairing with any peer
+    // still running the old name until every peer upgrades together.
+    muxer.pair({ protocol: 'hyperdiscovery' }, onpair)
     onpair()
 
     function onpair() {
       const channel = muxer.createChannel({
-        protocol: 'hypertracker',
+        protocol: 'hyperdiscovery',
         messages: [
           { encoding: Subscribe, onmessage: onsubscribe },
           { encoding: Unsubscribe, onmessage: onunsubscribe },
@@ -339,7 +342,8 @@ class HyperTrackerClient extends ReadyResource {
       this.muxer = getMuxer(this.connection)
       this.channel = this.muxer.createChannel({
         userData: this,
-        protocol: 'hypertracker',
+        // Must match the server's protocol name in addStream() above.
+        protocol: 'hyperdiscovery',
         messages: [
           { encoding: Subscribe, onmessage: unsupported },
           { encoding: Unsubscribe, onmessage: unsupported },
