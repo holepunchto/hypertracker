@@ -7,7 +7,9 @@ const Protomux = require('protomux')
 const c = require('compact-encoding')
 const HyperDB = require('hyperdb')
 
-const [NS_ANNOUNCE] = crypto.namespace('hypertracker', 1)
+// Keep the pre-rename string here: it's baked into signed announce/swarm
+// bytes, so changing it would invalidate every already-persisted signature.
+const [NS_ANNOUNCE] = crypto.namespace('hyperdiscovery', 1)
 const TIME_SLACK = 60_000
 
 const AnnouncePayload = getEncoding('@hypertracker/announce')
