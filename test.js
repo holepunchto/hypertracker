@@ -4,7 +4,7 @@ const HyperDHT = require('hyperdht')
 const setupTestnet = require('hyperdht/testnet')
 const promClient = require('prom-client')
 
-const { HyperDiscovery, HyperDiscoveryClient } = require('.')
+const { HyperTracker, HyperTrackerClient } = require('.')
 
 test('subscriber receives event from announcer', async (t) => {
   const testnet = await setupTestnet()
@@ -19,13 +19,13 @@ test('subscriber receives event from announcer', async (t) => {
   t.teardown(() => announcerDht.destroy(), { order: 4000 })
 
   const storage = await t.tmp()
-  const server = new HyperDiscovery(storage, { dht: serverDht })
+  const server = new HyperTracker(storage, { dht: serverDht })
   t.teardown(() => server.close(), { order: 3000 })
   await server.ready()
 
-  const subscriber = new HyperDiscoveryClient(server.publicKey, { dht: subscriberDht })
+  const subscriber = new HyperTrackerClient(server.publicKey, { dht: subscriberDht })
   t.teardown(() => subscriber.close(), { order: 2000 })
-  const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
+  const announcer = new HyperTrackerClient(server.publicKey, { dht: announcerDht })
   t.teardown(() => announcer.close(), { order: 2000 })
 
   const keyPair = crypto.keyPair()
@@ -54,11 +54,11 @@ test('lookup returns the latest announce', async (t) => {
   t.teardown(() => announcerDht.destroy(), { order: 4000 })
 
   const storage = await t.tmp()
-  const server = new HyperDiscovery(storage, { dht: serverDht })
+  const server = new HyperTracker(storage, { dht: serverDht })
   t.teardown(() => server.close(), { order: 3000 })
   await server.ready()
 
-  const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
+  const announcer = new HyperTrackerClient(server.publicKey, { dht: announcerDht })
   t.teardown(() => announcer.close(), { order: 2000 })
   const keyPair = crypto.keyPair()
 
@@ -92,13 +92,13 @@ test('unsubscribe stops future announces', async (t) => {
   t.teardown(() => announcerDht.destroy(), { order: 4000 })
 
   const storage = await t.tmp()
-  const server = new HyperDiscovery(storage, { dht: serverDht })
+  const server = new HyperTracker(storage, { dht: serverDht })
   t.teardown(() => server.close(), { order: 3000 })
   await server.ready()
 
-  const subscriber = new HyperDiscoveryClient(server.publicKey, { dht: subscriberDht })
+  const subscriber = new HyperTrackerClient(server.publicKey, { dht: subscriberDht })
   t.teardown(() => subscriber.close(), { order: 2000 })
-  const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
+  const announcer = new HyperTrackerClient(server.publicKey, { dht: announcerDht })
   t.teardown(() => announcer.close(), { order: 2000 })
 
   const keyPair = crypto.keyPair()
@@ -135,11 +135,11 @@ test('stale announce does not overwrite a newer record', async (t) => {
   t.teardown(() => announcerDht.destroy(), { order: 4000 })
 
   const storage = await t.tmp()
-  const server = new HyperDiscovery(storage, { dht: serverDht })
+  const server = new HyperTracker(storage, { dht: serverDht })
   t.teardown(() => server.close(), { order: 3000 })
   await server.ready()
 
-  const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
+  const announcer = new HyperTrackerClient(server.publicKey, { dht: announcerDht })
   t.teardown(() => announcer.close(), { order: 2000 })
   const keyPair = crypto.keyPair()
 
@@ -177,11 +177,11 @@ test('subscribing after an announce delivers the current record', async (t) => {
   t.teardown(() => announcerDht.destroy(), { order: 4000 })
 
   const storage = await t.tmp()
-  const server = new HyperDiscovery(storage, { dht: serverDht })
+  const server = new HyperTracker(storage, { dht: serverDht })
   t.teardown(() => server.close(), { order: 3000 })
   await server.ready()
 
-  const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
+  const announcer = new HyperTrackerClient(server.publicKey, { dht: announcerDht })
   t.teardown(() => announcer.close(), { order: 2000 })
   const keyPair = crypto.keyPair()
 
@@ -189,7 +189,7 @@ test('subscribing after an announce delivers the current record', async (t) => {
   await announcer.announce(keyPair, { bump })
   await waitForRecord(server, keyPair.publicKey)
 
-  const subscriber = new HyperDiscoveryClient(server.publicKey, { dht: subscriberDht })
+  const subscriber = new HyperTrackerClient(server.publicKey, { dht: subscriberDht })
   t.teardown(() => subscriber.close(), { order: 2000 })
 
   const caughtUp = t.test('catch-up announce')
@@ -217,7 +217,7 @@ test('stats', async (t) => {
   t.teardown(() => announcerDht.destroy(), { order: 4000 })
 
   const storage = await t.tmp()
-  const server = new HyperDiscovery(storage, { dht: serverDht })
+  const server = new HyperTracker(storage, { dht: serverDht })
   t.teardown(() => server.close(), { order: 3000 })
   await server.ready()
 
@@ -237,9 +237,9 @@ test('stats', async (t) => {
     'stats start at zero'
   )
 
-  const subscriber = new HyperDiscoveryClient(server.publicKey, { dht: subscriberDht })
+  const subscriber = new HyperTrackerClient(server.publicKey, { dht: subscriberDht })
   t.teardown(() => subscriber.close(), { order: 2000 })
-  const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
+  const announcer = new HyperTrackerClient(server.publicKey, { dht: announcerDht })
   t.teardown(() => announcer.close(), { order: 2000 })
 
   const keyPair = crypto.keyPair()
@@ -294,7 +294,7 @@ test('metrics', async (t) => {
   t.teardown(() => announcerDht.destroy(), { order: 4000 })
 
   const storage = await t.tmp()
-  const server = new HyperDiscovery(storage, { dht: serverDht })
+  const server = new HyperTracker(storage, { dht: serverDht })
   t.teardown(() => server.close(), { order: 3000 })
   await server.ready()
 
@@ -302,9 +302,9 @@ test('metrics', async (t) => {
   server.registerMetrics(promClient)
   t.teardown(() => promClient.register.clear())
 
-  const subscriber = new HyperDiscoveryClient(server.publicKey, { dht: subscriberDht })
+  const subscriber = new HyperTrackerClient(server.publicKey, { dht: subscriberDht })
   t.teardown(() => subscriber.close(), { order: 2000 })
-  const announcer = new HyperDiscoveryClient(server.publicKey, { dht: announcerDht })
+  const announcer = new HyperTrackerClient(server.publicKey, { dht: announcerDht })
   t.teardown(() => announcer.close(), { order: 2000 })
 
   const keyPair = crypto.keyPair()
@@ -321,15 +321,15 @@ test('metrics', async (t) => {
 
   const metrics = await promClient.register.metrics()
 
-  t.ok(metrics.includes('hyperdiscovery_streams_added 2'), 'streams added metric')
-  t.ok(metrics.includes('hyperdiscovery_streams_ended 1'), 'streams ended metric')
-  t.ok(metrics.includes('hyperdiscovery_subscriptions_added 1'), 'subscriptions added metric')
-  t.ok(metrics.includes('hyperdiscovery_subscriptions_removed 1'), 'subscriptions removed metric')
-  t.ok(metrics.includes('hyperdiscovery_announces 1'), 'announces metric')
-  t.ok(metrics.includes('hyperdiscovery_announces_sent 1'), 'announces sent metric')
-  t.ok(metrics.includes('hyperdiscovery_onsubscribe_count 1'), 'onsubscribe count metric')
-  t.ok(metrics.includes('hyperdiscovery_onunsubscribe_count 1'), 'onunsubscribe count metric')
-  t.ok(metrics.includes('hyperdiscovery_onannounce_count 1'), 'onannounce count metric')
+  t.ok(metrics.includes('hypertracker_streams_added 2'), 'streams added metric')
+  t.ok(metrics.includes('hypertracker_streams_ended 1'), 'streams ended metric')
+  t.ok(metrics.includes('hypertracker_subscriptions_added 1'), 'subscriptions added metric')
+  t.ok(metrics.includes('hypertracker_subscriptions_removed 1'), 'subscriptions removed metric')
+  t.ok(metrics.includes('hypertracker_announces 1'), 'announces metric')
+  t.ok(metrics.includes('hypertracker_announces_sent 1'), 'announces sent metric')
+  t.ok(metrics.includes('hypertracker_onsubscribe_count 1'), 'onsubscribe count metric')
+  t.ok(metrics.includes('hypertracker_onunsubscribe_count 1'), 'onunsubscribe count metric')
+  t.ok(metrics.includes('hypertracker_onannounce_count 1'), 'onannounce count metric')
 })
 
 async function waitForRecord(server, publicKey, timeout = 5000) {

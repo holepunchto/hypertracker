@@ -7,6 +7,8 @@ const Protomux = require('protomux')
 const c = require('compact-encoding')
 const HyperDB = require('hyperdb')
 
+// Keep the pre-rename string here: it's baked into signed announce/swarm
+// bytes, so changing it would invalidate every already-persisted signature.
 const [NS_ANNOUNCE] = crypto.namespace('hyperdiscovery', 1)
 const TIME_SLACK = 60_000
 
@@ -16,7 +18,7 @@ const Subscribe = getEncoding('@hyperdiscovery/subscribe-to-swarm')
 const Unsubscribe = getEncoding('@hyperdiscovery/unsubscribe-to-swarm')
 const Bump = getEncoding('@hyperdiscovery/bump-from-swarm')
 
-class HyperDiscovery extends ReadyResource {
+class HyperTracker extends ReadyResource {
   constructor(storage, { bootstrap, dht = new HyperDHT({ bootstrap }) } = {}) {
     super()
 
@@ -117,6 +119,9 @@ class HyperDiscovery extends ReadyResource {
     const tracker = this
     const subs = new Set()
 
+    // Keep the pre-rename protocol name here: it's the Protomux handshake
+    // string both sides pair on, so changing it breaks pairing with any peer
+    // still running the old name until every peer upgrades together.
     muxer.pair({ protocol: 'hyperdiscovery' }, onpair)
     onpair()
 
@@ -213,72 +218,72 @@ class HyperDiscovery extends ReadyResource {
     const tracker = this
 
     new promClient.Gauge({
-      name: 'hyperdiscovery_streams_added',
-      help: 'Hyperdiscovery streams added',
+      name: 'hypertracker_streams_added',
+      help: 'Hypertracker streams added',
       collect() {
         this.set(tracker.stats.streamsAdded)
       }
     })
 
     new promClient.Gauge({
-      name: 'hyperdiscovery_streams_ended',
-      help: 'Hyperdiscovery streams ended',
+      name: 'hypertracker_streams_ended',
+      help: 'Hypertracker streams ended',
       collect() {
         this.set(tracker.stats.streamsEnded)
       }
     })
 
     new promClient.Gauge({
-      name: 'hyperdiscovery_subscriptions_added',
-      help: 'Hyperdiscovery subscriptions added',
+      name: 'hypertracker_subscriptions_added',
+      help: 'Hypertracker subscriptions added',
       collect() {
         this.set(tracker.stats.subscriptionsAdded)
       }
     })
 
     new promClient.Gauge({
-      name: 'hyperdiscovery_subscriptions_removed',
-      help: 'Hyperdiscovery subscriptions removed',
+      name: 'hypertracker_subscriptions_removed',
+      help: 'Hypertracker subscriptions removed',
       collect() {
         this.set(tracker.stats.subscriptionsRemoved)
       }
     })
 
     new promClient.Gauge({
-      name: 'hyperdiscovery_announces',
-      help: 'Hyperdiscovery announces',
+      name: 'hypertracker_announces',
+      help: 'Hypertracker announces',
       collect() {
         this.set(tracker.stats.announces)
       }
     })
 
     new promClient.Gauge({
-      name: 'hyperdiscovery_announces_sent',
-      help: 'Hyperdiscovery announces sent',
+      name: 'hypertracker_announces_sent',
+      help: 'Hypertracker announces sent',
       collect() {
         this.set(tracker.stats.announcesSent)
       }
     })
 
     new promClient.Gauge({
-      name: 'hyperdiscovery_onsubscribe_count',
-      help: 'Hyperdiscovery onsubscribe count',
+      name: 'hypertracker_onsubscribe_count',
+      help: 'Hypertracker onsubscribe count',
       collect() {
         this.set(tracker.stats.onsubscribeCount)
       }
     })
 
     new promClient.Gauge({
-      name: 'hyperdiscovery_onunsubscribe_count',
-      help: 'Hyperdiscovery onunsubscribe count',
+      name: 'hypertracker_onunsubscribe_count',
+      help: 'Hypertracker onunsubscribe count',
       collect() {
         this.set(tracker.stats.onunsubscribeCount)
       }
     })
 
     new promClient.Gauge({
-      name: 'hyperdiscovery_onannounce_count',
-      help: 'Hyperdiscovery onannounce count',
+      name: 'hypertracker_onannounce_count',
+      help: 'Hypertracker onannounce count',
       collect() {
         this.set(tracker.stats.onannounceCount)
       }
@@ -286,7 +291,7 @@ class HyperDiscovery extends ReadyResource {
   }
 }
 
-class HyperDiscoveryClient extends ReadyResource {
+class HyperTrackerClient extends ReadyResource {
   constructor(remotePublicKey, { bootstrap, dht = new HyperDHT({ bootstrap }) } = {}) {
     super()
 
@@ -337,6 +342,7 @@ class HyperDiscoveryClient extends ReadyResource {
       this.muxer = getMuxer(this.connection)
       this.channel = this.muxer.createChannel({
         userData: this,
+        // Must match the server's protocol name in addStream() above.
         protocol: 'hyperdiscovery',
         messages: [
           { encoding: Subscribe, onmessage: unsupported },
@@ -461,7 +467,7 @@ class HyperDiscoveryClient extends ReadyResource {
   }
 }
 
-module.exports = { HyperDiscovery, HyperDiscoveryClient }
+module.exports = { HyperTracker, HyperTrackerClient }
 
 function getMuxer(stream) {
   if (Protomux.isProtomux(stream)) return stream

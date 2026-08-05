@@ -7,7 +7,7 @@ npm install hypertracker
 ## Usage
 
 ```js
-const Hyperdiscovery = require('hypertracker')
+const { HyperTracker, HyperTrackerClient } = require('hypertracker')
 ```
 
 ## License
