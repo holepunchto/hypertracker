@@ -164,6 +164,41 @@ test('stale announce does not overwrite a newer record', async (t) => {
   t.is(updated.bumped, newerBump, 'a genuinely newer announce still updates the record')
 })
 
+test('rejects announce bumps too far in the future', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  const server = new HyperTracker(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const announcer = new HyperTrackerClient(server.publicKey, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+  const keyPair = crypto.keyPair()
+
+  // TIME_SLACK is 60s; a bump far beyond that must be rejected.
+  await announcer.announce(keyPair, { bump: Date.now() + 120_000 })
+  await waitFor(() => server.stats.onannounceCount === 1)
+
+  t.is(server.stats.announces, 0, 'future bump is not accepted')
+  t.alike(await server.lookup(keyPair.publicKey), null, 'no record stored for future bump')
+
+  // A bump within the slack window is still accepted.
+  const withinSlack = Date.now() + 30_000
+  await announcer.announce(keyPair, { bump: withinSlack })
+  const record = await waitForRecord(server, keyPair.publicKey)
+
+  t.is(server.stats.announces, 1, 'bump within slack is accepted')
+  t.is(record.bumped, withinSlack, 'stores the within-slack bump')
+})
+
 test('subscribing after an announce delivers the current record', async (t) => {
   const testnet = await setupTestnet()
   const { bootstrap } = testnet
