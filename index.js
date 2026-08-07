@@ -184,7 +184,7 @@ class HyperTracker extends ReadyResource {
     c.fixed32.encode(state, NS_ANNOUNCE)
     AnnouncePayload.encode(state, m.announce)
 
-    if (Date.now() + TIME_SLACK > m.announce.bumped) return false
+    if (m.announce.bump > Date.now() + TIME_SLACK) return false
     if (!crypto.verify(state.buffer, m.signature, m.publicKey)) return false
 
     const v = await this.db.get('@hyperdiscovery/swarms', { publicKey: m.publicKey })
