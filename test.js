@@ -367,6 +367,46 @@ test('metrics', async (t) => {
   t.ok(metrics.includes('hypertracker_onannounce_count 1'), 'onannounce count metric')
 })
 
+test('accepted announces survive a graceful close', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  const server = new HyperTracker(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const announcer = new HyperTrackerClient(server.publicKey, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+  const keyPair = crypto.keyPair()
+
+  const bump = Date.now()
+  await announcer.announce(keyPair, { bump })
+
+  const record = await waitForRecord(server, keyPair.publicKey)
+  t.ok(record, 'record is visible before close')
+  t.is(record && record.bumped, bump, 'bump is stored before close')
+
+  await server.close()
+
+  const reopenDht = new HyperDHT({ bootstrap })
+  t.teardown(() => reopenDht.destroy(), { order: 4000 })
+  const reopened = new HyperTracker(storage, { dht: reopenDht })
+  t.teardown(() => reopened.close(), { order: 2500 })
+  await reopened.ready()
+
+  const persisted = await reopened.lookup(keyPair.publicKey)
+
+  t.ok(persisted, 'record still exists after reopening the same storage')
+  t.is(persisted && persisted.bumped, bump, 'bump survived the graceful close')
+})
+
 async function waitForRecord(server, publicKey, timeout = 5000) {
   const start = Date.now()
   while (Date.now() - start < timeout) {

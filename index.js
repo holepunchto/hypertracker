@@ -75,6 +75,7 @@ class HyperTracker extends ReadyResource {
     if (this._flushing) await this._flushing
     this._flushTimeout = null
     if (this._server) await this._server.close()
+    await this.db.flush()
     await this.db.close()
   }
 
