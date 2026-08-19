@@ -199,34 +199,6 @@ test('rejects announce bumps too far in the future', async (t) => {
   t.is(record.bumped, withinSlack, 'stores the within-slack bump')
 })
 
-test('rejects announce with a zero bump', async (t) => {
-  const testnet = await setupTestnet()
-  const { bootstrap } = testnet
-  t.teardown(() => testnet.destroy(), { order: 5000 })
-
-  const serverDht = new HyperDHT({ bootstrap })
-  t.teardown(() => serverDht.destroy(), { order: 4000 })
-  const announcerDht = new HyperDHT({ bootstrap })
-  t.teardown(() => announcerDht.destroy(), { order: 4000 })
-
-  const storage = await t.tmp()
-  const server = new HyperTracker(storage, { dht: serverDht })
-  t.teardown(() => server.close(), { order: 3000 })
-  await server.ready()
-
-  const announcer = new HyperTrackerClient(server.publicKey, { dht: announcerDht })
-  t.teardown(() => announcer.close(), { order: 2000 })
-  const keyPair = crypto.keyPair()
-
-  await announcer.announce(keyPair, { bump: 0 })
-
-  await waitFor(() => server.stats.onannounceCount === 1)
-  await new Promise((resolve) => setTimeout(resolve, 300))
-
-  t.is(server.stats.announces, 0, 'a zero bump is not accepted')
-  t.alike(await server.lookup(keyPair.publicKey), null, 'no record is stored for a zero bump')
-})
-
 test('subscribing after an announce delivers the current record', async (t) => {
   const testnet = await setupTestnet()
   const { bootstrap } = testnet

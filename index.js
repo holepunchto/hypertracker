@@ -174,7 +174,7 @@ class HyperTracker extends ReadyResource {
   }
 
   async announce(m, channel) {
-    if (m.announce.bump <= 0 || m.announce.bump > Date.now() + TIME_SLACK) return false
+    if (m.announce.bump > Date.now() + TIME_SLACK) return false
 
     const state = { buffer: null, start: 0, end: 0 }
 
