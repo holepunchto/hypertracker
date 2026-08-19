@@ -25,6 +25,7 @@ class HyperTracker extends ReadyResource {
     this.dht = dht
     this.db = HyperDB.rocks(storage, require('./spec/hyperdb'))
     this.subs = new Map()
+    this._announces = new PromiseQueue()
 
     this._flushTimeout = null
     this._flushing = null
@@ -174,7 +175,11 @@ class HyperTracker extends ReadyResource {
     return v
   }
 
-  async announce(m, channel) {
+  announce(m, channel) {
+    return this._announces.add(b4a.toString(m.publicKey, 'hex'), () => this._announce(m, channel))
+  }
+
+  async _announce(m, channel) {
     const state = { buffer: null, start: 0, end: 0 }
 
     c.fixed32.preencode(state, NS_ANNOUNCE)
@@ -487,3 +492,22 @@ function unsupported() {
 }
 
 function noop() {}
+
+class PromiseQueue {
+  constructor() {
+    this._tails = new Map()
+  }
+
+  add(id, fn) {
+    const tail = this._tails.get(id) || Promise.resolve()
+    const next = tail.then(fn, fn)
+    this._tails.set(id, next)
+
+    const release = () => {
+      if (this._tails.get(id) === next) this._tails.delete(id)
+    }
+    next.then(release, release)
+
+    return next
+  }
+}

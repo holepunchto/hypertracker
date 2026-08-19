@@ -3,8 +3,14 @@ const crypto = require('hypercore-crypto')
 const HyperDHT = require('hyperdht')
 const setupTestnet = require('hyperdht/testnet')
 const promClient = require('prom-client')
+const c = require('compact-encoding')
+const b4a = require('b4a')
 
+const { getEncoding } = require('./spec/hyperschema')
 const { HyperTracker, HyperTrackerClient } = require('.')
+
+const [NS_ANNOUNCE] = crypto.namespace('hyperdiscovery', 1)
+const AnnouncePayload = getEncoding('@hyperdiscovery/announce')
 
 test('subscriber receives event from announcer', async (t) => {
   const testnet = await setupTestnet()
@@ -162,6 +168,42 @@ test('stale announce does not overwrite a newer record', async (t) => {
 
   const updated = await server.lookup(keyPair.publicKey)
   t.is(updated.bumped, newerBump, 'a genuinely newer announce still updates the record')
+})
+
+test('concurrent announces keep the newest bump', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  const server = new HyperTracker(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const base = Date.now()
+  const newerBump = base + 5000
+  const olderBump = base + 1000
+  const keys = []
+  const pending = []
+
+  for (let i = 0; i < 100; i++) {
+    const keyPair = crypto.keyPair()
+    keys.push(keyPair)
+    pending.push(
+      server.announce(signAnnounce(keyPair, newerBump), null),
+      server.announce(signAnnounce(keyPair, olderBump), null)
+    )
+  }
+
+  await Promise.all(pending)
+
+  for (const keyPair of keys) {
+    const record = await server.lookup(keyPair.publicKey)
+    t.is(record && record.bumped, newerBump, 'newest bump wins')
+  }
 })
 
 test('rejects announce bumps too far in the future', async (t) => {
@@ -406,6 +448,25 @@ test('accepted announces survive a graceful close', async (t) => {
   t.ok(persisted, 'record still exists after reopening the same storage')
   t.is(persisted && persisted.bumped, bump, 'bump survived the graceful close')
 })
+
+function signAnnounce(keyPair, bump) {
+  const announce = { bump }
+  const state = { buffer: null, start: 0, end: 0 }
+
+  c.fixed32.preencode(state, NS_ANNOUNCE)
+  AnnouncePayload.preencode(state, announce)
+
+  state.buffer = b4a.allocUnsafe(state.end)
+
+  c.fixed32.encode(state, NS_ANNOUNCE)
+  AnnouncePayload.encode(state, announce)
+
+  return {
+    publicKey: keyPair.publicKey,
+    announce,
+    signature: crypto.sign(state.buffer, keyPair.secretKey)
+  }
+}
 
 async function waitForRecord(server, publicKey, timeout = 5000) {
   const start = Date.now()
