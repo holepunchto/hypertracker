@@ -193,8 +193,8 @@ class HyperTracker extends ReadyResource {
 
     if (!crypto.verify(state.buffer, m.signature, m.publicKey)) return false
 
-    const bumped = await this._bump(m)
-    if (!bumped) return false
+    const doc = await this._bump(m)
+    if (!doc) return false
 
     const subs = this.subs.get(b4a.toString(m.publicKey, 'hex'))
     if (subs) {
@@ -209,11 +209,11 @@ class HyperTracker extends ReadyResource {
     return true
   }
 
-  async _bump(m, channel) {
-    if (!(await this._lock.lock())) return
+  async _bump(m) {
+    if (!(await this._lock.lock())) return null
     try {
       const v = await this.db.get('@hyperdiscovery/swarms', { publicKey: m.publicKey })
-      if (v && v.bumped >= m.announce.bump) return false
+      if (v && v.bumped >= m.announce.bump) return null
 
       this.stats.announces++
 
@@ -225,7 +225,7 @@ class HyperTracker extends ReadyResource {
       }
 
       await this.db.insert('@hyperdiscovery/swarms', doc)
-      return true
+      return doc
     } finally {
       this._lock.unlock()
     }
