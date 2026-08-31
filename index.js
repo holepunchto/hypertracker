@@ -6,6 +6,7 @@ const b4a = require('b4a')
 const Protomux = require('protomux')
 const c = require('compact-encoding')
 const HyperDB = require('hyperdb')
+const ScopeLock = require('scope-lock')
 
 // Keep the pre-rename string here: it's baked into signed announce/swarm
 // bytes, so changing it would invalidate every already-persisted signature.
@@ -30,6 +31,7 @@ class HyperTracker extends ReadyResource {
     this._flushing = null
     this._server = null
     this._manifest = null
+    this._lock = new ScopeLock()
 
     this.stats = {
       streamsAdded: 0,
@@ -189,19 +191,7 @@ class HyperTracker extends ReadyResource {
 
     if (!crypto.verify(state.buffer, m.signature, m.publicKey)) return false
 
-    const v = await this.db.get('@hyperdiscovery/swarms', { publicKey: m.publicKey })
-    if (v && v.bumped >= m.announce.bump) return false
-
-    this.stats.announces++
-
-    const doc = {
-      publicKey: m.publicKey,
-      bumped: m.announce.bump,
-      updated: Date.now(),
-      signature: m.signature
-    }
-
-    await this.db.insert('@hyperdiscovery/swarms', doc)
+    await this._bump(m, channel)
 
     const subs = this.subs.get(b4a.toString(m.publicKey, 'hex'))
     if (subs) {
@@ -214,6 +204,28 @@ class HyperTracker extends ReadyResource {
     }
 
     return true
+  }
+
+  async _bump(m, channel) {
+    const lockResult = await this._lock.lock()
+    if (!lockResult) return
+    try {
+      const v = await this.db.get('@hyperdiscovery/swarms', { publicKey: m.publicKey })
+      if (v && v.bumped >= m.announce.bump) return false
+
+      this.stats.announces++
+
+      const doc = {
+        publicKey: m.publicKey,
+        bumped: m.announce.bump,
+        updated: Date.now(),
+        signature: m.signature
+      }
+
+      await this.db.insert('@hyperdiscovery/swarms', doc)
+    } finally {
+      this._lock.unlock()
+    }
   }
 
   registerMetrics(promClient) {
