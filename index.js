@@ -77,6 +77,8 @@ class HyperTracker extends ReadyResource {
     if (this._flushing) await this._flushing
     this._flushTimeout = null
     if (this._server) await this._server.close()
+    this._lock.destroy()
+    await this._lock.flush()
     await this.db.flush()
     await this.db.close()
   }
@@ -207,8 +209,7 @@ class HyperTracker extends ReadyResource {
   }
 
   async _bump(m, channel) {
-    const lockResult = await this._lock.lock()
-    if (!lockResult) return
+    if (!(await this._lock.lock())) return
     try {
       const v = await this.db.get('@hyperdiscovery/swarms', { publicKey: m.publicKey })
       if (v && v.bumped >= m.announce.bump) return false
