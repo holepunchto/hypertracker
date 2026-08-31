@@ -1,6 +1,6 @@
 {
   "name": "hypertracker",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Peer discovery powered by HyperDHT",
   "main": "index.js",
   "dependencies": {
