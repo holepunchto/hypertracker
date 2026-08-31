@@ -180,6 +180,8 @@ class HyperTracker extends ReadyResource {
   }
 
   async _announce(m, channel) {
+    if (m.announce.bump > Date.now() + TIME_SLACK) return false
+
     const state = { buffer: null, start: 0, end: 0 }
 
     c.fixed32.preencode(state, NS_ANNOUNCE)
