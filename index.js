@@ -6,6 +6,7 @@ const b4a = require('b4a')
 const Protomux = require('protomux')
 const c = require('compact-encoding')
 const HyperDB = require('hyperdb')
+const ScopeLock = require('scope-lock')
 
 // Keep the pre-rename string here: it's baked into signed announce/swarm
 // bytes, so changing it would invalidate every already-persisted signature.
@@ -32,6 +33,8 @@ class HyperTracker extends ReadyResource {
     this._server = null
     this._manifest = null
 
+    this._writeLock = new ScopeLock()
+
     this.stats = {
       streamsAdded: 0,
       streamsEnded: 0,
@@ -39,6 +42,7 @@ class HyperTracker extends ReadyResource {
       subscriptionsRemoved: 0,
       announces: 0,
       announcesSent: 0,
+      flushErrors: 0,
       onsubscribeCount: 0,
       onunsubscribeCount: 0,
       onannounceCount: 0
@@ -76,8 +80,13 @@ class HyperTracker extends ReadyResource {
     if (this._flushing) await this._flushing
     this._flushTimeout = null
     if (this._server) await this._server.close()
+
     this._announces.destroy()
     await this._announces.drain()
+
+    this._writeLock.destroy()
+    await this._writeLock.flush()
+
     await this.db.flush()
     await this.db.close()
   }
@@ -91,9 +100,20 @@ class HyperTracker extends ReadyResource {
       this._flushTimeout = null
       if (this.closing) return
 
-      this._flushing = this.db.flush()
+      this._flushing = this._flush()
       await this._flushing
       this._flushing = null
+    }
+  }
+
+  async _flush() {
+    if (!(await this._writeLock.lock())) return
+    try {
+      await this.db.flush()
+    } catch {
+      this.stats.flushErrors++
+    } finally {
+      this._writeLock.unlock()
     }
   }
 
@@ -199,8 +219,6 @@ class HyperTracker extends ReadyResource {
     const v = await this.db.get('@hyperdiscovery/swarms', { publicKey: m.publicKey })
     if (v && v.bumped >= m.announce.bump) return false
 
-    this.stats.announces++
-
     const doc = {
       publicKey: m.publicKey,
       bumped: m.announce.bump,
@@ -208,7 +226,14 @@ class HyperTracker extends ReadyResource {
       signature: m.signature
     }
 
-    await this.db.insert('@hyperdiscovery/swarms', doc)
+    if (!(await this._writeLock.lock())) return false
+    try {
+      await this.db.insert('@hyperdiscovery/swarms', doc)
+    } finally {
+      this._writeLock.unlock()
+    }
+
+    this.stats.announces++
 
     const subs = this.subs.get(b4a.toString(m.publicKey, 'hex'))
     if (subs) {
@@ -271,6 +296,14 @@ class HyperTracker extends ReadyResource {
       help: 'Hypertracker announces sent',
       collect() {
         this.set(tracker.stats.announcesSent)
+      }
+    })
+
+    new promClient.Gauge({
+      name: 'hypertracker_flush_errors',
+      help: 'Hypertracker background flushes that failed',
+      collect() {
+        this.set(tracker.stats.flushErrors)
       }
     })
 
