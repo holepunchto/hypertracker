@@ -11,7 +11,8 @@
     "hyperdht": "^6.20.5",
     "hyperschema": "^1.12.1",
     "protomux": "^3.10.1",
-    "ready-resource": "^1.1.2"
+    "ready-resource": "^1.1.2",
+    "scope-lock": "^1.2.4"
   },
   "repository": {
     "type": "git",
