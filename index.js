@@ -32,11 +32,6 @@ class HyperTracker extends ReadyResource {
     this._server = null
     this._manifest = null
 
-    // Every db mutation and every flush must be taken under this lock. hyperdb
-    // buffers writes in an in-memory batch and only persists them on flush(),
-    // and it refuses to flush while a mutation is in progress -- see the note
-    // on _flushBackground. Serialising the two is what keeps that refusal from
-    // ever happening.
     this._writeLock = new ScopeLock()
 
     this.stats = {
@@ -70,8 +65,6 @@ class HyperTracker extends ReadyResource {
     await this._server.listen(crypto.keyPair(this._manifest.seed))
   }
 
-  // Runs before the server listens, so nothing else can be writing yet and the
-  // lock is not needed here.
   async _init() {
     this._manifest = await this.db.get('@hyperdiscovery/manifest')
     if (this._manifest) return
@@ -87,10 +80,6 @@ class HyperTracker extends ReadyResource {
     this._flushTimeout = null
     if (this._server) await this._server.close()
 
-    // db.close() drops the pending batch without persisting it, so the final
-    // flush has to succeed or every write since the last one is lost. Destroy
-    // the lock to turn away new writers, then wait for in-flight ones, so the
-    // flush below cannot collide with a mutation and throw.
     this._writeLock.destroy()
     await this._writeLock.flush()
 
@@ -113,22 +102,6 @@ class HyperTracker extends ReadyResource {
     }
   }
 
-  // Writes accumulate in hyperdb's in-memory batch until this commits them, so
-  // a flush that stops happening is an unbounded memory leak, not just stale
-  // data on disk.
-  //
-  // Two things can throw here and both used to kill the loop above for the
-  // lifetime of the process, silently, because _open() starts it with
-  // .catch(noop):
-  //
-  //   - 'Insert/delete in progress, refusing to commit' -- hyperdb holds that
-  //     state across an awaited read inside insert(), so a tick landing in that
-  //     window used to be enough. The write lock now rules this out.
-  //   - a failure from the underlying commit, such as a disk error, which no
-  //     amount of locking prevents.
-  //
-  // So a failure is counted and treated as a skipped cycle; the next tick
-  // retries. A rising flushErrors means writes are piling up in memory.
   async _flush() {
     if (!(await this._writeLock.lock())) return
     try {
@@ -215,10 +188,6 @@ class HyperTracker extends ReadyResource {
     }
   }
 
-  // Reads do not touch the pending batch and never conflict with a flush, so
-  // they are deliberately outside the write lock. Any db.delete() added later
-  // would need the lock: hyperdb marks deletes in progress exactly as it does
-  // inserts.
   async lookup(publicKey) {
     const v = await this.db.get('@hyperdiscovery/swarms', { publicKey })
     return v
@@ -249,14 +218,6 @@ class HyperTracker extends ReadyResource {
       signature: m.signature
     }
 
-    // The insert only lands in hyperdb's in-memory batch; _flush() is what
-    // persists it. Held under the write lock so a flush cannot run while the
-    // mutation is in progress. A destroyed lock means we are closing, so drop
-    // the announce rather than writing behind the final flush.
-    //
-    // insert() itself throws only on an unknown collection or a closed db,
-    // neither of which is reachable here: the collection name is a constant,
-    // and closing destroys the lock above before db.close() runs.
     if (!(await this._writeLock.lock())) return false
     try {
       await this.db.insert('@hyperdiscovery/swarms', doc)
