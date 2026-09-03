@@ -6,6 +6,7 @@ const b4a = require('b4a')
 const Protomux = require('protomux')
 const c = require('compact-encoding')
 const HyperDB = require('hyperdb')
+const ScopeLock = require('scope-lock')
 
 // Keep the pre-rename string here: it's baked into signed announce/swarm
 // bytes, so changing it would invalidate every already-persisted signature.
@@ -31,6 +32,13 @@ class HyperTracker extends ReadyResource {
     this._server = null
     this._manifest = null
 
+    // Every db mutation and every flush must be taken under this lock. hyperdb
+    // buffers writes in an in-memory batch and only persists them on flush(),
+    // and it refuses to flush while a mutation is in progress -- see the note
+    // on _flushBackground. Serialising the two is what keeps that refusal from
+    // ever happening.
+    this._writeLock = new ScopeLock()
+
     this.stats = {
       streamsAdded: 0,
       streamsEnded: 0,
@@ -38,6 +46,7 @@ class HyperTracker extends ReadyResource {
       subscriptionsRemoved: 0,
       announces: 0,
       announcesSent: 0,
+      flushErrors: 0,
       onsubscribeCount: 0,
       onunsubscribeCount: 0,
       onannounceCount: 0
@@ -61,6 +70,8 @@ class HyperTracker extends ReadyResource {
     await this._server.listen(crypto.keyPair(this._manifest.seed))
   }
 
+  // Runs before the server listens, so nothing else can be writing yet and the
+  // lock is not needed here.
   async _init() {
     this._manifest = await this.db.get('@hyperdiscovery/manifest')
     if (this._manifest) return
@@ -75,6 +86,14 @@ class HyperTracker extends ReadyResource {
     if (this._flushing) await this._flushing
     this._flushTimeout = null
     if (this._server) await this._server.close()
+
+    // db.close() drops the pending batch without persisting it, so the final
+    // flush has to succeed or every write since the last one is lost. Destroy
+    // the lock to turn away new writers, then wait for in-flight ones, so the
+    // flush below cannot collide with a mutation and throw.
+    this._writeLock.destroy()
+    await this._writeLock.flush()
+
     await this.db.flush()
     await this.db.close()
   }
@@ -88,9 +107,36 @@ class HyperTracker extends ReadyResource {
       this._flushTimeout = null
       if (this.closing) return
 
-      this._flushing = this.db.flush()
+      this._flushing = this._flush()
       await this._flushing
       this._flushing = null
+    }
+  }
+
+  // Writes accumulate in hyperdb's in-memory batch until this commits them, so
+  // a flush that stops happening is an unbounded memory leak, not just stale
+  // data on disk.
+  //
+  // Two things can throw here and both used to kill the loop above for the
+  // lifetime of the process, silently, because _open() starts it with
+  // .catch(noop):
+  //
+  //   - 'Insert/delete in progress, refusing to commit' -- hyperdb holds that
+  //     state across an awaited read inside insert(), so a tick landing in that
+  //     window used to be enough. The write lock now rules this out.
+  //   - a failure from the underlying commit, such as a disk error, which no
+  //     amount of locking prevents.
+  //
+  // So a failure is counted and treated as a skipped cycle; the next tick
+  // retries. A rising flushErrors means writes are piling up in memory.
+  async _flush() {
+    if (!(await this._writeLock.lock())) return
+    try {
+      await this.db.flush()
+    } catch {
+      this.stats.flushErrors++
+    } finally {
+      this._writeLock.unlock()
     }
   }
 
@@ -169,6 +215,10 @@ class HyperTracker extends ReadyResource {
     }
   }
 
+  // Reads do not touch the pending batch and never conflict with a flush, so
+  // they are deliberately outside the write lock. Any db.delete() added later
+  // would need the lock: hyperdb marks deletes in progress exactly as it does
+  // inserts.
   async lookup(publicKey) {
     const v = await this.db.get('@hyperdiscovery/swarms', { publicKey })
     return v
@@ -192,8 +242,6 @@ class HyperTracker extends ReadyResource {
     const v = await this.db.get('@hyperdiscovery/swarms', { publicKey: m.publicKey })
     if (v && v.bumped >= m.announce.bump) return false
 
-    this.stats.announces++
-
     const doc = {
       publicKey: m.publicKey,
       bumped: m.announce.bump,
@@ -201,7 +249,22 @@ class HyperTracker extends ReadyResource {
       signature: m.signature
     }
 
-    await this.db.insert('@hyperdiscovery/swarms', doc)
+    // The insert only lands in hyperdb's in-memory batch; _flush() is what
+    // persists it. Held under the write lock so a flush cannot run while the
+    // mutation is in progress. A destroyed lock means we are closing, so drop
+    // the announce rather than writing behind the final flush.
+    //
+    // insert() itself throws only on an unknown collection or a closed db,
+    // neither of which is reachable here: the collection name is a constant,
+    // and closing destroys the lock above before db.close() runs.
+    if (!(await this._writeLock.lock())) return false
+    try {
+      await this.db.insert('@hyperdiscovery/swarms', doc)
+    } finally {
+      this._writeLock.unlock()
+    }
+
+    this.stats.announces++
 
     const subs = this.subs.get(b4a.toString(m.publicKey, 'hex'))
     if (subs) {
@@ -264,6 +327,14 @@ class HyperTracker extends ReadyResource {
       help: 'Hypertracker announces sent',
       collect() {
         this.set(tracker.stats.announcesSent)
+      }
+    })
+
+    new promClient.Gauge({
+      name: 'hypertracker_flush_errors',
+      help: 'Hypertracker background flushes that failed',
+      collect() {
+        this.set(tracker.stats.flushErrors)
       }
     })
 

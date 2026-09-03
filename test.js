@@ -3,8 +3,14 @@ const crypto = require('hypercore-crypto')
 const HyperDHT = require('hyperdht')
 const setupTestnet = require('hyperdht/testnet')
 const promClient = require('prom-client')
+const c = require('compact-encoding')
+const b4a = require('b4a')
 
+const { getEncoding } = require('./spec/hyperschema')
 const { HyperTracker, HyperTrackerClient } = require('.')
+
+const [NS_ANNOUNCE] = crypto.namespace('hyperdiscovery', 1)
+const AnnouncePayload = getEncoding('@hyperdiscovery/announce')
 
 test('subscriber receives event from announcer', async (t) => {
   const testnet = await setupTestnet()
@@ -265,6 +271,7 @@ test('stats', async (t) => {
       subscriptionsRemoved: 0,
       announces: 0,
       announcesSent: 0,
+      flushErrors: 0,
       onsubscribeCount: 0,
       onunsubscribeCount: 0,
       onannounceCount: 0
@@ -362,6 +369,7 @@ test('metrics', async (t) => {
   t.ok(metrics.includes('hypertracker_subscriptions_removed 1'), 'subscriptions removed metric')
   t.ok(metrics.includes('hypertracker_announces 1'), 'announces metric')
   t.ok(metrics.includes('hypertracker_announces_sent 1'), 'announces sent metric')
+  t.ok(metrics.includes('hypertracker_flush_errors 0'), 'flush errors metric')
   t.ok(metrics.includes('hypertracker_onsubscribe_count 1'), 'onsubscribe count metric')
   t.ok(metrics.includes('hypertracker_onunsubscribe_count 1'), 'onunsubscribe count metric')
   t.ok(metrics.includes('hypertracker_onannounce_count 1'), 'onannounce count metric')
@@ -406,6 +414,118 @@ test('accepted announces survive a graceful close', async (t) => {
   t.ok(persisted, 'record still exists after reopening the same storage')
   t.is(persisted && persisted.bumped, bump, 'bump survived the graceful close')
 })
+
+test('a failed flush does not stop future flushes', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  const server = new HyperTracker(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  // The write lock keeps flushes off in-flight inserts, but the underlying
+  // commit can still fail on a disk error. That must cost one cycle, not the
+  // whole process: a dead flush loop leaks the pending batch forever.
+  const realFlush = server.db.flush.bind(server.db)
+  let thrown = false
+  server.db.flush = () => {
+    if (thrown) return realFlush()
+    thrown = true
+    return Promise.reject(new Error('disk I/O error from commit'))
+  }
+
+  const keyPair = crypto.keyPair()
+  const bump = Date.now()
+  await server.announce(signAnnounce(keyPair, bump), null)
+
+  await server._flush()
+  t.is(server.stats.flushErrors, 1, 'the failure is counted rather than swallowed')
+
+  await server._flush()
+  t.is(server.stats.flushErrors, 1, 'the next flush succeeds')
+  t.is(server.db.updates.size, 0, 'the pending batch drains instead of growing forever')
+
+  const persisted = await server.lookup(keyPair.publicKey)
+  t.is(persisted && persisted.bumped, bump, 'the write survived the failed flush')
+})
+
+test('closing with announces in flight persists every pending write', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  const server = new HyperTracker(storage, { dht: serverDht })
+  await server.ready()
+
+  // Deliberately not awaited, so inserts are still running when close starts --
+  // what shutting down a busy tracker looks like. db.close() drops the pending
+  // batch, so if the final flush collides with a mutation and throws, every one
+  // of these is lost.
+  const keyPairs = []
+  const announcing = []
+
+  const wave = (n) => {
+    for (let i = 0; i < n; i++) {
+      const keyPair = crypto.keyPair()
+      keyPairs.push(keyPair)
+      announcing.push(server.announce(signAnnounce(keyPair, Date.now() + keyPairs.length), null))
+    }
+  }
+
+  // First wave settles into the pending batch, so there is real data to lose.
+  wave(200)
+  await new Promise((resolve) => setTimeout(resolve, 50))
+
+  // Second wave is still mid-insert when close starts, which is what makes the
+  // final flush collide unless close drains the lock first.
+  wave(200)
+  await server.close()
+
+  const results = await Promise.allSettled(announcing)
+  const accepted = results.filter((r) => r.status === 'fulfilled' && r.value === true).length
+
+  const reopened = new HyperTracker(storage, { dht: serverDht })
+  t.teardown(() => reopened.close(), { order: 3000 })
+  await reopened.ready()
+
+  let found = 0
+  for (const keyPair of keyPairs) {
+    if (await reopened.lookup(keyPair.publicKey)) found++
+  }
+
+  t.ok(accepted > 0, `${accepted} announces were accepted before the lock closed`)
+  t.is(found, accepted, 'every accepted announce survived the close')
+})
+
+// Builds the wire form of an announce so tests can call server.announce()
+// directly, without routing through a client and the network.
+function signAnnounce(keyPair, bump) {
+  const announce = { bump }
+  const state = { buffer: null, start: 0, end: 0 }
+
+  c.fixed32.preencode(state, NS_ANNOUNCE)
+  AnnouncePayload.preencode(state, announce)
+
+  state.buffer = b4a.allocUnsafe(state.end)
+
+  c.fixed32.encode(state, NS_ANNOUNCE)
+  AnnouncePayload.encode(state, announce)
+
+  return {
+    publicKey: keyPair.publicKey,
+    announce,
+    signature: crypto.sign(state.buffer, keyPair.secretKey)
+  }
+}
 
 async function waitForRecord(server, publicKey, timeout = 5000) {
   const start = Date.now()
