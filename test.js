@@ -449,6 +449,55 @@ test('accepted announces survive a graceful close', async (t) => {
   t.is(persisted && persisted.bumped, bump, 'bump survived the graceful close')
 })
 
+test('closing with announces in flight persists every pending write', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  const server = new HyperTracker(storage, { dht: serverDht })
+  await server.ready()
+
+  const keyPairs = []
+  const announcing = []
+
+  const wave = (n) => {
+    for (let i = 0; i < n; i++) {
+      const keyPair = crypto.keyPair()
+      keyPairs.push(keyPair)
+      announcing.push(server.announce(signAnnounce(keyPair, Date.now() + keyPairs.length), null))
+    }
+  }
+
+  // First wave settles into the pending batch, so there is real data to lose.
+  wave(200)
+  await new Promise((resolve) => setTimeout(resolve, 50))
+
+  // Second wave is fired without awaiting, so close begins while announces are
+  // still resolving. db.close() discards the pending batch, so anything the
+  // final flush fails to commit is lost.
+  wave(200)
+  await server.close()
+
+  const results = await Promise.allSettled(announcing)
+  const accepted = results.filter((r) => r.status === 'fulfilled' && r.value === true).length
+
+  const reopened = new HyperTracker(storage, { dht: serverDht })
+  t.teardown(() => reopened.close(), { order: 3000 })
+  await reopened.ready()
+
+  let found = 0
+  for (const keyPair of keyPairs) {
+    if (await reopened.lookup(keyPair.publicKey)) found++
+  }
+
+  t.ok(accepted > 0, `${accepted} announces were accepted before the queue closed`)
+  t.is(found, accepted, 'every accepted announce survived the close')
+})
+
 function signAnnounce(keyPair, bump) {
   const announce = { bump }
   const state = { buffer: null, start: 0, end: 0 }
