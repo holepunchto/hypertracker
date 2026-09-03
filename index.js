@@ -76,6 +76,8 @@ class HyperTracker extends ReadyResource {
     if (this._flushing) await this._flushing
     this._flushTimeout = null
     if (this._server) await this._server.close()
+    this._announces.destroy()
+    await this._announces.drain()
     await this.db.flush()
     await this.db.close()
   }
@@ -497,14 +499,26 @@ function noop() {}
 class PromiseQueue {
   constructor() {
     this._tails = new Map()
+    this._destroyed = false
   }
 
   add(id, fn) {
+    if (this._destroyed) return Promise.resolve(false)
     const tail = this._tails.get(id) || Promise.resolve()
     const next = tail.then(fn, fn)
     this._tails.set(id, next)
     return next.finally(() => {
       if (this._tails.get(id) === next) this._tails.delete(id)
     })
+  }
+
+  destroy() {
+    this._destroyed = true
+  }
+
+  async drain() {
+    while (this._tails.size > 0) {
+      await Promise.allSettled([...this._tails.values()])
+    }
   }
 }
