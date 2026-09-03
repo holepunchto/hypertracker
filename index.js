@@ -503,12 +503,8 @@ class PromiseQueue {
     const tail = this._tails.get(id) || Promise.resolve()
     const next = tail.then(fn, fn)
     this._tails.set(id, next)
-
-    const release = () => {
+    return next.finally(() => {
       if (this._tails.get(id) === next) this._tails.delete(id)
-    }
-    next.then(release, release)
-
-    return next
+    })
   }
 }
