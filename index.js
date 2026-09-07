@@ -26,6 +26,7 @@ class HyperTracker extends ReadyResource {
     this.dht = dht
     this.db = HyperDB.rocks(storage, require('./spec/hyperdb'))
     this.subs = new Map()
+    this._announces = new PromiseQueue()
 
     this._flushTimeout = null
     this._flushing = null
@@ -79,6 +80,9 @@ class HyperTracker extends ReadyResource {
     if (this._flushing) await this._flushing
     this._flushTimeout = null
     if (this._server) await this._server.close()
+
+    this._announces.destroy()
+    await this._announces.drain()
 
     this._writeLock.destroy()
     await this._writeLock.flush()
@@ -193,7 +197,11 @@ class HyperTracker extends ReadyResource {
     return v
   }
 
-  async announce(m, channel) {
+  announce(m, channel) {
+    return this._announces.add(b4a.toString(m.publicKey, 'hex'), () => this._announce(m, channel))
+  }
+
+  async _announce(m, channel) {
     if (m.announce.bump > Date.now() + TIME_SLACK) return false
 
     const state = { buffer: null, start: 0, end: 0 }
@@ -520,3 +528,30 @@ function unsupported() {
 }
 
 function noop() {}
+
+class PromiseQueue {
+  constructor() {
+    this._tails = new Map()
+    this._destroyed = false
+  }
+
+  add(id, fn) {
+    if (this._destroyed) return Promise.resolve(false)
+    const tail = this._tails.get(id) || Promise.resolve()
+    const next = tail.then(fn, fn)
+    this._tails.set(id, next)
+    return next.finally(() => {
+      if (this._tails.get(id) === next) this._tails.delete(id)
+    })
+  }
+
+  destroy() {
+    this._destroyed = true
+  }
+
+  async drain() {
+    while (this._tails.size > 0) {
+      await Promise.allSettled([...this._tails.values()])
+    }
+  }
+}

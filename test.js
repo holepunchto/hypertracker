@@ -170,6 +170,46 @@ test('stale announce does not overwrite a newer record', async (t) => {
   t.is(updated.bumped, newerBump, 'a genuinely newer announce still updates the record')
 })
 
+test('concurrent announces keep the newest bump', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  const server = new HyperTracker(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const KEYS = 5
+  const PER_KEY = 100
+
+  const base = Date.now()
+  const newest = base + PER_KEY - 1
+  const keys = []
+  const pending = []
+
+  // Collisions happen per key, so depth per key is what matters -- a few keys
+  // with many announces each, not many keys with two announces each.
+  for (let i = 0; i < KEYS; i++) {
+    const keyPair = crypto.keyPair()
+    keys.push(keyPair)
+
+    for (let bump = base; bump <= newest; bump++) {
+      pending.push(server.announce(signAnnounce(keyPair, bump), null))
+    }
+  }
+
+  await Promise.all(pending)
+
+  for (const keyPair of keys) {
+    const record = await server.lookup(keyPair.publicKey)
+    t.is(record && record.bumped, newest, 'newest bump wins')
+  }
+})
+
 test('rejects announce bumps too far in the future', async (t) => {
   const testnet = await setupTestnet()
   const { bootstrap } = testnet
@@ -466,28 +506,25 @@ test('closing with announces in flight persists every pending write', async (t) 
   const server = new HyperTracker(storage, { dht: serverDht })
   await server.ready()
 
-  // Deliberately not awaited, so inserts are still running when close starts --
-  // what shutting down a busy tracker looks like. db.close() drops the pending
-  // batch, so if the final flush collides with a mutation and throws, every one
-  // of these is lost.
+  const KEYS = 20
+  const PER_KEY = 20
+
+  const base = Date.now()
+  const newest = base + PER_KEY - 1
   const keyPairs = []
   const announcing = []
 
-  const wave = (n) => {
-    for (let i = 0; i < n; i++) {
-      const keyPair = crypto.keyPair()
-      keyPairs.push(keyPair)
-      announcing.push(server.announce(signAnnounce(keyPair, Date.now() + keyPairs.length), null))
+  for (let i = 0; i < KEYS; i++) keyPairs.push(crypto.keyPair())
+
+  // Several announces per key, so each per-key chain is genuinely backed up
+  // when close starts. One announce per key never queues deeper than 1 and
+  // drains on its own, which hides whether close waits for anything.
+  for (let bump = base; bump <= newest; bump++) {
+    for (const keyPair of keyPairs) {
+      announcing.push(server.announce(signAnnounce(keyPair, bump), null))
     }
   }
 
-  // First wave settles into the pending batch, so there is real data to lose.
-  wave(200)
-  await new Promise((resolve) => setTimeout(resolve, 50))
-
-  // Second wave is still mid-insert when close starts, which is what makes the
-  // final flush collide unless close drains the lock first.
-  wave(200)
   await server.close()
 
   const results = await Promise.allSettled(announcing)
@@ -497,13 +534,14 @@ test('closing with announces in flight persists every pending write', async (t) 
   t.teardown(() => reopened.close(), { order: 3000 })
   await reopened.ready()
 
-  let found = 0
+  let persisted = 0
   for (const keyPair of keyPairs) {
-    if (await reopened.lookup(keyPair.publicKey)) found++
+    const record = await reopened.lookup(keyPair.publicKey)
+    if (record && record.bumped === newest) persisted++
   }
 
-  t.ok(accepted > 0, `${accepted} announces were accepted before the lock closed`)
-  t.is(found, accepted, 'every accepted announce survived the close')
+  t.is(accepted, KEYS * PER_KEY, 'the drain let every queued announce finish')
+  t.is(persisted, KEYS, 'every key persisted its newest bump')
 })
 
 // Builds the wire form of an announce so tests can call server.announce()
