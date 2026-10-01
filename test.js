@@ -595,8 +595,6 @@ test('multi client emits connect once per tracker, carrying the client', async (
     'every event carried one of our own clients'
   )
 
-  // The event alone proves nothing: _reconnect emits it whether or not the
-  // connection actually landed. Check the trackers really saw us.
   await waitFor(() => trackers.every((tracker) => tracker.stats.streamsAdded === 1))
   t.ok(
     trackers.every((tracker) => tracker.stats.streamsAdded === 1),
@@ -628,8 +626,6 @@ test('multi client announces to every tracker with one shared bump', async (t) =
 
   const keyPair = crypto.keyPair()
 
-  // No bump given, so the multi client must mint one and use it everywhere --
-  // that is what makes dedup on the way back exact.
   await multi.announce(keyPair)
 
   const bumps = []
@@ -679,7 +675,6 @@ test('multi client emits a single announce event for all trackers', async (t) =>
 
   t.is(events, 1, 'three trackers echoed the same bump, one event surfaced')
 
-  // A genuinely newer bump is not a duplicate and must get through.
   await announcer.announce(keyPair, { bump: Date.now() + 10_000 })
   await waitFor(() => events === 2)
 
@@ -732,8 +727,6 @@ async function createTrackers(t, bootstrap, n) {
   for (let i = 0; i < n; i++) {
     const dht = new HyperDHT({ bootstrap })
     t.teardown(() => dht.destroy(), { order: 4000 })
-    // Must be bootstrapped before the tracker listens, or clients cannot
-    // discover it and the announces go nowhere.
     await dht.ready()
 
     const tracker = new HyperTracker(await t.tmp(), { dht })
