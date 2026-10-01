@@ -5,6 +5,7 @@ const setupTestnet = require('hyperdht/testnet')
 const promClient = require('prom-client')
 const c = require('compact-encoding')
 const b4a = require('b4a')
+const process = require('process')
 
 const { getEncoding } = require('./spec/hyperschema')
 const { HyperTracker, HyperTrackerClient, HyperTrackerMultiClient } = require('.')
