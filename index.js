@@ -528,7 +528,7 @@ class HyperTrackerMultiClient extends ReadyResource {
     const id = b4a.toString(bump.publicKey, 'hex')
     const seen = this._bumps.get(id)
 
-    if (seen !== undefined && seen >= bump.bumped) return
+    if (seen >= bump.bumped) return
 
     this._bumps.set(id, bump.bumped)
     this.emit('announce', bump)
