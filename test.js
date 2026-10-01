@@ -5,9 +5,10 @@ const setupTestnet = require('hyperdht/testnet')
 const promClient = require('prom-client')
 const c = require('compact-encoding')
 const b4a = require('b4a')
+const process = require('process')
 
 const { getEncoding } = require('./spec/hyperschema')
-const { HyperTracker, HyperTrackerClient } = require('.')
+const { HyperTracker, HyperTrackerClient, HyperTrackerMultiClient } = require('.')
 
 const [NS_ANNOUNCE] = crypto.namespace('hyperdiscovery', 1)
 const AnnouncePayload = getEncoding('@hyperdiscovery/announce')
@@ -563,6 +564,246 @@ function signAnnounce(keyPair, bump) {
     announce,
     signature: crypto.sign(state.buffer, keyPair.secretKey)
   }
+}
+
+test('multi client emits connect once per tracker, carrying the client', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const trackers = await createTrackers(t, bootstrap, 3)
+
+  const dht = new HyperDHT({ bootstrap })
+  t.teardown(() => dht.destroy(), { order: 4000 })
+  await dht.ready()
+
+  const multi = new HyperTrackerMultiClient(
+    trackers.map((tracker) => tracker.publicKey),
+    { dht }
+  )
+  t.teardown(() => multi.close(), { order: 2000 })
+
+  const seen = []
+  multi.on('connect', (client) => seen.push(client))
+
+  multi.connect()
+  await waitFor(() => seen.length === 3)
+
+  t.is(seen.length, 3, 'one connect per tracker')
+  t.is(new Set(seen).size, 3, 'each event carried a distinct client')
+  t.ok(
+    seen.every((client) => multi.clients.includes(client)),
+    'every event carried one of our own clients'
+  )
+
+  await waitFor(() => trackers.every((tracker) => tracker.stats.streamsAdded === 1))
+  t.ok(
+    trackers.every((tracker) => tracker.stats.streamsAdded === 1),
+    'every tracker really accepted a stream'
+  )
+})
+
+test('multi client announces to every tracker with one shared bump', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const trackers = await createTrackers(t, bootstrap, 3)
+
+  const dht = new HyperDHT({ bootstrap })
+  t.teardown(() => dht.destroy(), { order: 4000 })
+  await dht.ready()
+
+  const multi = new HyperTrackerMultiClient(
+    trackers.map((tracker) => tracker.publicKey),
+    { dht }
+  )
+  t.teardown(() => multi.close(), { order: 2000 })
+
+  let connected = 0
+  multi.on('connect', () => connected++)
+  multi.connect()
+  await waitFor(() => connected === 3)
+
+  const keyPair = crypto.keyPair()
+
+  await multi.announce(keyPair)
+
+  const bumps = []
+  for (const tracker of trackers) {
+    const record = await waitForRecord(tracker, keyPair.publicKey)
+    t.ok(record, 'tracker stored the announce')
+    bumps.push(record.bumped)
+  }
+
+  t.is(new Set(bumps).size, 1, 'all three trackers stored an identical bump')
+})
+
+test('multi client emits a single announce event for all trackers', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const trackers = await createTrackers(t, bootstrap, 3)
+  const keys = trackers.map((tracker) => tracker.publicKey)
+
+  const subscriberDht = new HyperDHT({ bootstrap })
+  t.teardown(() => subscriberDht.destroy(), { order: 4000 })
+  await subscriberDht.ready()
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+  await announcerDht.ready()
+
+  const subscriber = new HyperTrackerMultiClient(keys, { dht: subscriberDht })
+  t.teardown(() => subscriber.close(), { order: 2000 })
+  const announcer = new HyperTrackerMultiClient(keys, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+
+  let connected = 0
+  subscriber.on('connect', () => connected++)
+  subscriber.connect()
+  await waitFor(() => connected === 3)
+
+  const keyPair = crypto.keyPair()
+  let events = 0
+  subscriber.on('announce', () => events++)
+
+  subscriber.subscribe(keyPair.publicKey)
+  await announcer.announce(keyPair, { bump: Date.now() })
+
+  await waitFor(() => events > 0)
+  await new Promise((resolve) => setTimeout(resolve, 1500))
+
+  t.is(events, 1, 'three trackers echoed the same bump, one event surfaced')
+
+  await announcer.announce(keyPair, { bump: Date.now() + 10_000 })
+  await waitFor(() => events === 2)
+
+  t.is(events, 2, 'a newer bump still surfaces')
+})
+
+test('multi client unsubscribe stops announces on every tracker', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const trackers = await createTrackers(t, bootstrap, 3)
+  const keys = trackers.map((tracker) => tracker.publicKey)
+
+  const subscriberDht = new HyperDHT({ bootstrap })
+  t.teardown(() => subscriberDht.destroy(), { order: 4000 })
+  await subscriberDht.ready()
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+  await announcerDht.ready()
+
+  const subscriber = new HyperTrackerMultiClient(keys, { dht: subscriberDht })
+  t.teardown(() => subscriber.close(), { order: 2000 })
+  const announcer = new HyperTrackerMultiClient(keys, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+
+  let connected = 0
+  subscriber.on('connect', () => connected++)
+  subscriber.connect()
+  await waitFor(() => connected === 3)
+
+  const keyPair = crypto.keyPair()
+  let events = 0
+  subscriber.on('announce', () => events++)
+
+  subscriber.subscribe(keyPair.publicKey)
+  await announcer.announce(keyPair, { bump: Date.now() })
+  await waitFor(() => events === 1)
+
+  subscriber.unsubscribe(keyPair.publicKey)
+  await announcer.announce(keyPair, { bump: Date.now() + 10_000 })
+  await new Promise((resolve) => setTimeout(resolve, 1500))
+
+  t.is(events, 1, 'no further announce after unsubscribing from every tracker')
+})
+
+test('multi client keeps working when a tracker dies', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const trackers = await createTrackers(t, bootstrap, 3)
+
+  const subscriberDht = new HyperDHT({ bootstrap })
+  t.teardown(() => subscriberDht.destroy(), { order: 4000 })
+  await subscriberDht.ready()
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+  await announcerDht.ready()
+
+  const keys = trackers.map((tracker) => tracker.publicKey)
+  const subscriber = new HyperTrackerMultiClient(keys, { dht: subscriberDht })
+  t.teardown(() => subscriber.close(), { order: 2000 })
+  const announcer = new HyperTrackerMultiClient(keys, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+
+  const unhandled = []
+  const onUnhandled = (err) => unhandled.push(err)
+  process.on('unhandledRejection', onUnhandled)
+  t.teardown(() => process.off('unhandledRejection', onUnhandled))
+
+  let connected = 0
+  subscriber.on('connect', () => connected++)
+  subscriber.connect()
+  announcer.connect()
+  await waitFor(() => connected === 3)
+  await waitFor(() => trackers.every((tracker) => tracker.stats.streamsAdded >= 2))
+
+  let events = 0
+  subscriber.on('announce', () => events++)
+
+  const alive = crypto.keyPair()
+  subscriber.subscribe(alive.publicKey)
+  await announcer.announce(alive, { bump: Date.now() })
+  await waitFor(() => events === 1)
+
+  await trackers[0].close()
+
+  t.execution(() => subscriber.subscribe(crypto.keyPair().publicKey), 'subscribe survives')
+  t.execution(() => subscriber.unsubscribe(alive.publicKey), 'unsubscribe survives')
+  t.execution(() => subscriber.connect(), 'connect survives')
+
+  await t.execution(announcer.announce(crypto.keyPair()), 'announce resolves')
+  await t.execution(announcer.suspend(), 'suspend resolves')
+
+  t.execution(() => announcer.resume(), 'resume survives')
+
+  const after = crypto.keyPair()
+  subscriber.subscribe(after.publicKey)
+  await announcer.announce(after, { bump: Date.now() })
+  await waitFor(() => events === 2)
+
+  t.is(events, 2, 'announces still flow through the surviving trackers')
+
+  await new Promise((resolve) => setTimeout(resolve, 1000))
+  t.is(
+    unhandled.length,
+    0,
+    `no unhandled rejections (${unhandled.map((e) => e.message).join('; ')})`
+  )
+})
+
+async function createTrackers(t, bootstrap, n) {
+  const trackers = []
+
+  for (let i = 0; i < n; i++) {
+    const dht = new HyperDHT({ bootstrap })
+    t.teardown(() => dht.destroy(), { order: 4000 })
+    await dht.ready()
+
+    const tracker = new HyperTracker(await t.tmp(), { dht })
+    t.teardown(() => tracker.close(), { order: 3000 })
+    await tracker.ready()
+
+    trackers.push(tracker)
+  }
+
+  return trackers
 }
 
 async function waitForRecord(server, publicKey, timeout = 5000) {

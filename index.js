@@ -509,7 +509,63 @@ class HyperTrackerClient extends ReadyResource {
   }
 }
 
-module.exports = { HyperTracker, HyperTrackerClient }
+class HyperTrackerMultiClient extends ReadyResource {
+  constructor(remotePublicKeys, { bootstrap, dht = new HyperDHT({ bootstrap }) } = {}) {
+    super()
+
+    this.dht = dht
+    this.clients = remotePublicKeys.map((key) => new HyperTrackerClient(key, { dht }))
+
+    this._bumps = new Map()
+
+    for (const client of this.clients) {
+      client.on('announce', (bump) => this._onannounce(bump))
+      client.on('connect', () => this.emit('connect', client))
+    }
+  }
+
+  _onannounce(bump) {
+    const id = b4a.toString(bump.publicKey, 'hex')
+    const seen = this._bumps.get(id)
+
+    if (seen >= bump.bumped) return
+
+    this._bumps.set(id, bump.bumped)
+    this.emit('announce', bump)
+  }
+
+  connect() {
+    for (const client of this.clients) client.connect()
+  }
+
+  subscribe(publicKey, opts) {
+    for (const client of this.clients) client.subscribe(publicKey, opts)
+  }
+
+  unsubscribe(publicKey) {
+    this._bumps.delete(b4a.toString(publicKey, 'hex'))
+    for (const client of this.clients) client.unsubscribe(publicKey)
+  }
+
+  async announce(keyPair, { bump = Date.now() } = {}) {
+    await Promise.allSettled(this.clients.map((client) => client.announce(keyPair, { bump })))
+  }
+
+  async suspend() {
+    await Promise.allSettled(this.clients.map((client) => client.suspend()))
+  }
+
+  resume() {
+    this.clients.map((client) => client.resume())
+  }
+
+  async _close() {
+    this._bumps.clear()
+    await Promise.allSettled(this.clients.map((client) => client.close()))
+  }
+}
+
+module.exports = { HyperTracker, HyperTrackerClient, HyperTrackerMultiClient }
 
 function getMuxer(stream) {
   if (Protomux.isProtomux(stream)) return stream
