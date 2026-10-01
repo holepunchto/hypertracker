@@ -721,6 +721,72 @@ test('multi client unsubscribe stops announces on every tracker', async (t) => {
   t.is(events, 1, 'no further announce after unsubscribing from every tracker')
 })
 
+test('multi client keeps working when a tracker dies', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const trackers = await createTrackers(t, bootstrap, 3)
+
+  const subscriberDht = new HyperDHT({ bootstrap })
+  t.teardown(() => subscriberDht.destroy(), { order: 4000 })
+  await subscriberDht.ready()
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+  await announcerDht.ready()
+
+  const keys = trackers.map((tracker) => tracker.publicKey)
+  const subscriber = new HyperTrackerMultiClient(keys, { dht: subscriberDht })
+  t.teardown(() => subscriber.close(), { order: 2000 })
+  const announcer = new HyperTrackerMultiClient(keys, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+
+  const unhandled = []
+  const onUnhandled = (err) => unhandled.push(err)
+  process.on('unhandledRejection', onUnhandled)
+  t.teardown(() => process.off('unhandledRejection', onUnhandled))
+
+  let connected = 0
+  subscriber.on('connect', () => connected++)
+  subscriber.connect()
+  announcer.connect()
+  await waitFor(() => connected === 3)
+  await waitFor(() => trackers.every((tracker) => tracker.stats.streamsAdded >= 2))
+
+  let events = 0
+  subscriber.on('announce', () => events++)
+
+  const alive = crypto.keyPair()
+  subscriber.subscribe(alive.publicKey)
+  await announcer.announce(alive, { bump: Date.now() })
+  await waitFor(() => events === 1)
+
+  await trackers[0].close()
+
+  t.execution(() => subscriber.subscribe(crypto.keyPair().publicKey), 'subscribe survives')
+  t.execution(() => subscriber.unsubscribe(alive.publicKey), 'unsubscribe survives')
+  t.execution(() => subscriber.connect(), 'connect survives')
+
+  await t.execution(announcer.announce(crypto.keyPair()), 'announce resolves')
+  await t.execution(announcer.suspend(), 'suspend resolves')
+
+  t.execution(() => announcer.resume(), 'resume survives')
+
+  const after = crypto.keyPair()
+  subscriber.subscribe(after.publicKey)
+  await announcer.announce(after, { bump: Date.now() })
+  await waitFor(() => events === 2)
+
+  t.is(events, 2, 'announces still flow through the surviving trackers')
+
+  await new Promise((resolve) => setTimeout(resolve, 1000))
+  t.is(
+    unhandled.length,
+    0,
+    `no unhandled rejections (${unhandled.map((e) => e.message).join('; ')})`
+  )
+})
+
 async function createTrackers(t, bootstrap, n) {
   const trackers = []
 
