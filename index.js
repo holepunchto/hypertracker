@@ -548,7 +548,7 @@ class HyperTrackerMultiClient extends ReadyResource {
   }
 
   async announce(keyPair, { bump = Date.now() } = {}) {
-    await Promise.all(this.clients.map((client) => client.announce(keyPair, { bump })))
+    await Promise.allSettled(this.clients.map((client) => client.announce(keyPair, { bump })))
   }
 
   async suspend() {
