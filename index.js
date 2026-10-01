@@ -555,8 +555,8 @@ class HyperTrackerMultiClient extends ReadyResource {
     await Promise.allSettled(this.clients.map((client) => client.suspend()))
   }
 
-  async resume() {
-    await Promise.allSettled(this.clients.map((client) => client.resume()))
+  resume() {
+    this.clients.map((client) => client.resume())
   }
 
   async _close() {
