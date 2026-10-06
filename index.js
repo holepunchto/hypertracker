@@ -487,7 +487,7 @@ class HyperTrackerClient extends ReadyResource {
     })
   }
 
-  async announce(keyPair, { bump = Date.now() } = {}) {
+  announce(keyPair, { bump = Date.now() } = {}) {
     const channel = this._getChannel()
     if (!channel) return
 
