@@ -548,23 +548,27 @@ class HyperTrackerMultiClient extends ReadyResource {
   }
 
   async announce(keyPair, { bump = Date.now() } = {}) {
-    await Promise.all(this.clients.map(async (client) => {
-      try {
-        await client.announce(keyPair, { bump })
-      } catch (err) {
-        this.emit('announce-error', err, client)
-      }
-    }))
+    await Promise.all(
+      this.clients.map(async (client) => {
+        try {
+          await client.announce(keyPair, { bump })
+        } catch (err) {
+          this.emit('announce-error', err, client)
+        }
+      })
+    )
   }
 
   async suspend() {
-    await Promise.all(this.clients.map(async (client) => {
-      try {
-        await client.suspend()
-      } catch (err) {
-        this.emit('suspend-error', err, client)
-      }
-    }))
+    await Promise.all(
+      this.clients.map(async (client) => {
+        try {
+          await client.suspend()
+        } catch (err) {
+          this.emit('suspend-error', err, client)
+        }
+      })
+    )
   }
 
   resume() {
