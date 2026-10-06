@@ -44,7 +44,7 @@ test('subscriber receives event from announcer', async (t) => {
   })
 
   subscriber.subscribe(keyPair.publicKey)
-  await announcer.announce(keyPair)
+  announcer.announce(keyPair)
 
   await announced
 })
@@ -71,14 +71,14 @@ test('lookup returns the latest announce', async (t) => {
   t.alike(await server.lookup(keyPair.publicKey), null, 'no record')
 
   const bump = Date.now()
-  await announcer.announce(keyPair, { bump })
+  announcer.announce(keyPair, { bump })
 
   const record = await waitForRecord(server, keyPair.publicKey)
   t.ok(record, 'record exists after announce')
   t.is(record.bumped, bump, 'stores the bump timestamp')
 
   const bump2 = bump + 10_000
-  await announcer.announce(keyPair, { bump: bump2 })
+  announcer.announce(keyPair, { bump: bump2 })
   await new Promise((resolve) => setTimeout(resolve, 800))
 
   const updated = await server.lookup(keyPair.publicKey)
@@ -119,12 +119,12 @@ test('unsubscribe stops future announces', async (t) => {
   })
 
   subscriber.subscribe(keyPair.publicKey)
-  await announcer.announce(keyPair, { bump: Date.now() })
+  announcer.announce(keyPair, { bump: Date.now() })
 
   await firstAnnounce
 
   subscriber.unsubscribe(keyPair.publicKey)
-  await announcer.announce(keyPair, { bump: Date.now() + 10_000 })
+  announcer.announce(keyPair, { bump: Date.now() + 10_000 })
 
   await new Promise((resolve) => setTimeout(resolve, 1500))
   t.is(receivedCount, 1, 'no further announce received after unsubscribing')
@@ -150,12 +150,12 @@ test('stale announce does not overwrite a newer record', async (t) => {
   const keyPair = crypto.keyPair()
 
   const bump = Date.now()
-  await announcer.announce(keyPair, { bump })
+  announcer.announce(keyPair, { bump })
 
   const record = await waitForRecord(server, keyPair.publicKey)
   t.ok(record, 'record exists after first announce')
 
-  await announcer.announce(keyPair, { bump: bump - 10_000 })
+  announcer.announce(keyPair, { bump: bump - 10_000 })
   await new Promise((resolve) => setTimeout(resolve, 800))
 
   const stale = await server.lookup(keyPair.publicKey)
@@ -163,7 +163,7 @@ test('stale announce does not overwrite a newer record', async (t) => {
   t.is(stale.updated, record.updated, 'record is untouched by an older announce')
 
   const newerBump = bump + 10_000
-  await announcer.announce(keyPair, { bump: newerBump })
+  announcer.announce(keyPair, { bump: newerBump })
   await new Promise((resolve) => setTimeout(resolve, 800))
 
   const updated = await server.lookup(keyPair.publicKey)
@@ -230,7 +230,7 @@ test('rejects announce bumps too far in the future', async (t) => {
   const keyPair = crypto.keyPair()
 
   // TIME_SLACK is 60s; a bump far beyond that must be rejected.
-  await announcer.announce(keyPair, { bump: Date.now() + 120_000 })
+  announcer.announce(keyPair, { bump: Date.now() + 120_000 })
   await waitFor(() => server.stats.onannounceCount === 1)
 
   t.is(server.stats.announces, 0, 'future bump is not accepted')
@@ -238,7 +238,7 @@ test('rejects announce bumps too far in the future', async (t) => {
 
   // A bump within the slack window is still accepted.
   const withinSlack = Date.now() + 30_000
-  await announcer.announce(keyPair, { bump: withinSlack })
+  announcer.announce(keyPair, { bump: withinSlack })
   const record = await waitForRecord(server, keyPair.publicKey)
 
   t.is(server.stats.announces, 1, 'bump within slack is accepted')
@@ -267,7 +267,7 @@ test('subscribing after an announce delivers the current record', async (t) => {
   const keyPair = crypto.keyPair()
 
   const bump = Date.now()
-  await announcer.announce(keyPair, { bump })
+  announcer.announce(keyPair, { bump })
   await waitForRecord(server, keyPair.publicKey)
 
   const subscriber = new HyperTrackerClient(server.publicKey, { dht: subscriberDht })
@@ -334,7 +334,7 @@ test('stats', async (t) => {
   })
 
   subscriber.subscribe(keyPair.publicKey)
-  await announcer.announce(keyPair)
+  announcer.announce(keyPair)
 
   await announced
 
@@ -392,7 +392,7 @@ test('metrics', async (t) => {
   const keyPair = crypto.keyPair()
 
   subscriber.subscribe(keyPair.publicKey)
-  await announcer.announce(keyPair)
+  announcer.announce(keyPair)
   await waitFor(() => server.stats.announces === 1)
 
   subscriber.unsubscribe(keyPair.publicKey)
@@ -435,7 +435,7 @@ test('accepted announces survive a graceful close', async (t) => {
   const keyPair = crypto.keyPair()
 
   const bump = Date.now()
-  await announcer.announce(keyPair, { bump })
+  announcer.announce(keyPair, { bump })
 
   const record = await waitForRecord(server, keyPair.publicKey)
   t.ok(record, 'record is visible before close')
