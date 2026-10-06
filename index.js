@@ -578,8 +578,8 @@ class HyperTrackerMultiClient extends ReadyResource {
 
   async _runClientsAsync(clients, handler) {
     const results = await Promise.allSettled(clients.map((client) => handler(client)))
-    const rejections = results.filter(x => x.status === 'rejected').map(x => x.reason)
-    if (rejections.length) throw new AggregateError(rejections, 'One or more clients failed to handle error')
+    const errors = results.filter(x => x.status === 'rejected').map(x => x.reason)
+    if (errors.length) throw new AggregateError(errors, 'One or more clients failed to handle error')
   }
 }
 
