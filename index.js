@@ -583,7 +583,15 @@ class HyperTrackerMultiClient extends ReadyResource {
 
   async _close() {
     this._bumps.clear()
-    await Promise.allSettled(this.clients.map((client) => client.close()))
+    await Promise.all(
+      this.clients.map(async (client) => {
+        try {
+          await client.close()
+        } catch (err) {
+          this.emit('close-error', err, client)
+        }
+      })
+    )
   }
 }
 
