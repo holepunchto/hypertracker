@@ -552,7 +552,9 @@ class HyperTrackerMultiClient extends ReadyResource {
   }
 
   async suspend() {
-    return await Promise.allSettled(this.clients.map((client) => client.suspend()))
+    const result = await Promise.allSettled(this.clients.map((client) => client.suspend()))
+    const rejections = result.filter(x => x.status === 'rejected').map(x => x.reason)
+    if (rejections.length) throw new AggregateError(rejections, 'One or more clients failed to suspend') 
   }
 
   resume() {
@@ -561,7 +563,10 @@ class HyperTrackerMultiClient extends ReadyResource {
 
   async _close() {
     this._bumps.clear()
-    return await Promise.allSettled(this.clients.map((client) => client.close()))
+
+    const result = await Promise.allSettled(this.clients.map((client) => client.close()))
+    const rejections = result.filter(x => x.status === 'rejected').map(x => x.reason)
+    if (rejections.length) throw new AggregateError(rejections, 'One or more clients failed to close') 
   }
 }
 
