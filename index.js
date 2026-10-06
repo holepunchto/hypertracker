@@ -573,13 +573,17 @@ class HyperTrackerMultiClient extends ReadyResource {
         errors.push(error)
       }
     }
-    if (errors.length) throw new AggregateError(errors, 'One or more clients failed to handle error')
+    if (errors.length) {
+      throw new AggregateError(errors, 'One or more clients failed to handle error')
+    }
   }
 
   async _runClientsAsync(clients, handler) {
     const results = await Promise.allSettled(clients.map((client) => handler(client)))
-    const errors = results.filter(x => x.status === 'rejected').map(x => x.reason)
-    if (errors.length) throw new AggregateError(errors, 'One or more clients failed to handle error')
+    const errors = results.filter((x) => x.status === 'rejected').map((x) => x.reason)
+    if (errors.length) {
+      throw new AggregateError(errors, 'One or more clients failed to handle error')
+    }
   }
 }
 
