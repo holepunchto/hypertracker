@@ -552,7 +552,7 @@ class HyperTrackerMultiClient extends ReadyResource {
   }
 
   async suspend() {
-    await Promise.allSettled(this.clients.map((client) => client.suspend()))
+    return await Promise.allSettled(this.clients.map((client) => client.suspend()))
   }
 
   resume() {
@@ -561,7 +561,7 @@ class HyperTrackerMultiClient extends ReadyResource {
 
   async _close() {
     this._bumps.clear()
-    await Promise.allSettled(this.clients.map((client) => client.close()))
+    return await Promise.allSettled(this.clients.map((client) => client.close()))
   }
 }
 
