@@ -535,54 +535,51 @@ class HyperTrackerMultiClient extends ReadyResource {
   }
 
   connect() {
-    for (const client of this.clients) client.connect()
+    this._runClients(this.clients, (client) => client.connect())
   }
 
   subscribe(publicKey, opts) {
-    for (const client of this.clients) client.subscribe(publicKey, opts)
+    this._runClients(this.clients, (client) => client.subscribe(publicKey, opts))
   }
 
   unsubscribe(publicKey) {
     this._bumps.delete(b4a.toString(publicKey, 'hex'))
-    for (const client of this.clients) client.unsubscribe(publicKey)
+    this._runClients(this.clients, (client) => client.unsubscribe(publicKey))
   }
 
   announce(keyPair, { bump = Date.now() } = {}) {
-    const errors = []
-    this.clients.forEach((client) => {
-      try {
-        client.announce(keyPair, { bump })
-      } catch (error) {
-        errors.push(error)
-      }
-    })
-    if (errors.length) throw new AggregateError(errors, 'One or more clients failed to announce')
+    this._runClients(this.clients, (client) => client.announce(keyPair, { bump }))
   }
 
   async suspend() {
-    const result = await Promise.allSettled(this.clients.map((client) => client.suspend()))
-    const rejections = result.filter(x => x.status === 'rejected').map(x => x.reason)
-    if (rejections.length) throw new AggregateError(rejections, 'One or more clients failed to suspend') 
+    await this._runClientsAsync(this.clients, (client) => client.suspend())
   }
 
   resume() {
-    const errors = []
-    this.clients.forEach((client) => {
-      try {
-        client.resume()
-      } catch (error) {
-        errors.push(error)
-      }
-    })
-    if (errors.length) throw new AggregateError(errors, 'One or more clients failed to resume')
+    this._runClients(this.clients, (client) => client.resume())
   }
 
   async _close() {
     this._bumps.clear()
+    await this._runClientsAsync(this.clients, (client) => client.close())
+  }
 
-    const result = await Promise.allSettled(this.clients.map((client) => client.close()))
-    const rejections = result.filter(x => x.status === 'rejected').map(x => x.reason)
-    if (rejections.length) throw new AggregateError(rejections, 'One or more clients failed to close') 
+  _runClients(clients, handler) {
+    const errors = []
+    for (const client of clients) {
+      try {
+        handler(client)
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+    if (errors.length) throw new AggregateError(errors, 'One or more clients failed to handle error')
+  }
+
+  async _runClientsAsync(clients, handler) {
+    const results = await Promise.allSettled(clients.map((client) => handler(client)))
+    const rejections = results.filter(x => x.status === 'rejected').map(x => x.reason)
+    if (rejections.length) throw new AggregateError(rejections, 'One or more clients failed to handle error')
   }
 }
 
