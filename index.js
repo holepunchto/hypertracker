@@ -548,7 +548,15 @@ class HyperTrackerMultiClient extends ReadyResource {
   }
 
   announce(keyPair, { bump = Date.now() } = {}) {
-    this.clients.forEach((client) => client.announce(keyPair, { bump }))
+    const errors = []
+    this.clients.forEach((client) => {
+      try {
+        client.announce(keyPair, { bump })
+      } catch (error) {
+        errors.push(error)
+      }
+    })
+    if (errors.length) throw new AggregateError(errors, 'One or more clients failed to announce')
   }
 
   async suspend() {
@@ -558,7 +566,15 @@ class HyperTrackerMultiClient extends ReadyResource {
   }
 
   resume() {
-    this.clients.forEach((client) => client.resume())
+    const errors = []
+    this.clients.forEach((client) => {
+      try {
+        client.resume()
+      } catch (error) {
+        errors.push(error)
+      }
+    })
+    if (errors.length) throw new AggregateError(errors, 'One or more clients failed to resume')
   }
 
   async _close() {
