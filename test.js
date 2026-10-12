@@ -788,6 +788,159 @@ test('multi client keeps working when a tracker dies', async (t) => {
   )
 })
 
+test('cork batches subscribes until uncork', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  await serverDht.ready()
+  const clientDht = new HyperDHT({ bootstrap })
+  t.teardown(() => clientDht.destroy(), { order: 4000 })
+  await clientDht.ready()
+
+  const storage = await t.tmp()
+  const server = new HyperTracker(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const client = new HyperTrackerClient(server.publicKey, { dht: clientDht })
+  t.teardown(() => client.close(), { order: 2000 })
+
+  client.connect()
+  await new Promise((resolve) => client.on('connect', resolve))
+  await waitFor(() => server.stats.streamsAdded === 1)
+
+  client.cork()
+  for (let i = 0; i < 10; i++) client.subscribe(crypto.keyPair().publicKey)
+  await new Promise((resolve) => setTimeout(resolve, 500))
+
+  t.is(server.stats.onsubscribeCount, 0, 'nothing reaches the tracker while corked')
+
+  client.uncork()
+  await waitFor(() => server.stats.onsubscribeCount === 10)
+
+  t.is(server.stats.onsubscribeCount, 10, 'uncork flushes every subscribe')
+})
+
+test('cork nests, so only the outermost uncork flushes', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  await serverDht.ready()
+  const clientDht = new HyperDHT({ bootstrap })
+  t.teardown(() => clientDht.destroy(), { order: 4000 })
+  await clientDht.ready()
+
+  const storage = await t.tmp()
+  const server = new HyperTracker(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const client = new HyperTrackerClient(server.publicKey, { dht: clientDht })
+  t.teardown(() => client.close(), { order: 2000 })
+
+  client.connect()
+  await new Promise((resolve) => client.on('connect', resolve))
+  await waitFor(() => server.stats.streamsAdded === 1)
+
+  client.cork()
+  client.cork()
+  client.subscribe(crypto.keyPair().publicKey)
+
+  client.uncork()
+  await new Promise((resolve) => setTimeout(resolve, 500))
+  t.is(server.stats.onsubscribeCount, 0, 'inner uncork does not flush')
+
+  client.uncork()
+  await waitFor(() => server.stats.onsubscribeCount === 1)
+  t.is(server.stats.onsubscribeCount, 1, 'outer uncork flushes')
+})
+
+test('multi client corks and uncorks every tracker', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const trackers = await createTrackers(t, bootstrap, 3)
+
+  const dht = new HyperDHT({ bootstrap })
+  t.teardown(() => dht.destroy(), { order: 4000 })
+  await dht.ready()
+
+  const multi = new HyperTrackerMultiClient(
+    trackers.map((tracker) => tracker.publicKey),
+    { dht }
+  )
+  t.teardown(() => multi.close(), { order: 2000 })
+
+  let connected = 0
+  multi.on('connect', () => connected++)
+  multi.connect()
+  await waitFor(() => connected === 3)
+  await waitFor(() => trackers.every((tracker) => tracker.stats.streamsAdded >= 1))
+
+  multi.cork()
+  for (let i = 0; i < 10; i++) multi.subscribe(crypto.keyPair().publicKey)
+  await new Promise((resolve) => setTimeout(resolve, 500))
+
+  t.ok(
+    trackers.every((tracker) => tracker.stats.onsubscribeCount === 0),
+    'nothing reaches any tracker while corked'
+  )
+
+  multi.uncork()
+  await waitFor(() => trackers.every((tracker) => tracker.stats.onsubscribeCount === 10))
+
+  t.ok(
+    trackers.every((tracker) => tracker.stats.onsubscribeCount === 10),
+    'uncork flushes all ten to every tracker'
+  )
+})
+
+test('multi client cork survives a dead tracker', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const trackers = await createTrackers(t, bootstrap, 3)
+
+  const dht = new HyperDHT({ bootstrap })
+  t.teardown(() => dht.destroy(), { order: 4000 })
+  await dht.ready()
+
+  const multi = new HyperTrackerMultiClient(
+    trackers.map((tracker) => tracker.publicKey),
+    { dht }
+  )
+  t.teardown(() => multi.close(), { order: 2000 })
+
+  let connected = 0
+  multi.on('connect', () => connected++)
+  multi.connect()
+  await waitFor(() => connected === 3)
+  await waitFor(() => trackers.every((tracker) => tracker.stats.streamsAdded >= 1))
+
+  await trackers[0].close()
+
+  const survivors = trackers.slice(1)
+
+  t.execution(() => multi.cork(), 'cork survives')
+  for (let i = 0; i < 5; i++) multi.subscribe(crypto.keyPair().publicKey)
+  t.execution(() => multi.uncork(), 'uncork survives')
+
+  await waitFor(() => survivors.every((tracker) => tracker.stats.onsubscribeCount === 5))
+
+  t.ok(
+    survivors.every((tracker) => tracker.stats.onsubscribeCount === 5),
+    'the surviving trackers still receive the batch'
+  )
+})
+
 async function createTrackers(t, bootstrap, n) {
   const trackers = []
 
