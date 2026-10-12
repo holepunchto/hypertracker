@@ -538,14 +538,6 @@ class HyperTrackerMultiClient extends ReadyResource {
     this._runClients(this.clients, (client) => client.connect())
   }
 
-  cork() {
-    this._runClients(this.clients, (client) => client.cork())
-  }
-
-  uncork() {
-    this._runClients(this.clients, (client) => client.uncork())
-  }
-
   subscribe(publicKey, opts) {
     this._runClients(this.clients, (client) => client.subscribe(publicKey, opts))
   }
