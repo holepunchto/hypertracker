@@ -3,6 +3,21 @@
   "version": "2.1.0",
   "description": "Peer discovery powered by HyperDHT",
   "main": "index.js",
+  "files": [
+    "index.js",
+    "client.js",
+    "multiclient.js",
+    "server.js",
+    "lib.js",
+    "spec"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./multiclient": "./multiclient.js",
+    "./server": "./server.js",
+    "./package": "./package.json"
+  },
   "dependencies": {
     "b4a": "^1.6.7",
     "compact-encoding": "^3.0.0",
