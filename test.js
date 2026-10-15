@@ -888,7 +888,7 @@ test('multi client setKeys replaces the tracker set', async (t) => {
   t.ok(second.closed || second.closing, 'previously added tracker[2] is now closed')
 })
 
-test('multi client setKeys connects a new tracker only once already connected', async (t) => {
+test('multi client setKeys connects a new tracker only when explicitly called', async (t) => {
   const testnet = await setupTestnet()
   const { bootstrap } = testnet
   t.teardown(() => testnet.destroy(), { order: 5000 })
@@ -916,6 +916,7 @@ test('multi client setKeys connects a new tracker only once already connected', 
   multi.setKeys([trackers[1].publicKey, trackers[2].publicKey])
   t.is(multi.clients.length, 2)
 
+  multi.connect()
   await waitFor(() => seen.length === 1)
   await new Promise((resolve) => setTimeout(resolve, 500))
   t.is(seen.length, 1)

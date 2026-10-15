@@ -4,7 +4,15 @@ const b4a = require('b4a')
 const HyperTrackerClient = require('./client')
 const { noop } = require('./lib')
 
+/**
+ * Fan-out client for multiple HyperTracker servers.
+ * Emits `connect` with the inner client, and `announce` once per unique bump.
+ */
 class HyperTrackerMultiClient extends ReadyResource {
+  /**
+   * @param {Buffer[]} remotePublicKeys Tracker public keys
+   * @param {{ bootstrap?: any, dht?: any }} [opts]
+   */
   constructor(remotePublicKeys, { bootstrap, dht = new HyperDHT({ bootstrap }) } = {}) {
     super()
 
@@ -16,6 +24,7 @@ class HyperTrackerMultiClient extends ReadyResource {
     this.setKeys(remotePublicKeys)
   }
 
+  /** @returns {HyperTrackerClient[]} */
   get clients() {
     return [...this._clients.values()]
   }
@@ -39,10 +48,19 @@ class HyperTrackerMultiClient extends ReadyResource {
 
     this._clients.set(key, client)
 
-    if (this._suspended) client.suspend()
-    if (this._connected) client.connect()
+    if (this._suspended) client.suspended = true
+    // this is makes it so .resume() automatically reconnects
+    // we do this only if multiclient was connected before so it expects
+    // same state on new keys
+    if (this._connected) client._shouldReconnect = true
   }
 
+  /**
+   * Replace the tracker key set.
+   * Unchanged keys keep their client. Removed keys are closed.
+   * New keys inherit suspend state but do not connect.
+   * @param {Buffer[]} remotePublicKeys
+   */
   setKeys(remotePublicKeys) {
     if (this.closing || this.closed) return
 
@@ -56,32 +74,49 @@ class HyperTrackerMultiClient extends ReadyResource {
     }
   }
 
+  /** Connect to every tracker. No-op for clients that already have a channel. */
   connect() {
     this._connected = true
     this._runClients(this.clients, (client) => client.connect())
   }
 
+  /**
+   * Subscribe to a key on every tracker.
+   * @param {Buffer} publicKey
+   * @param {{ since?: number }} [opts]
+   */
   subscribe(publicKey, opts) {
     this._connected = true
     this._runClients(this.clients, (client) => client.subscribe(publicKey, opts))
   }
 
+  /**
+   * Unsubscribe a key on every tracker.
+   * @param {Buffer} publicKey
+   */
   unsubscribe(publicKey) {
     this._connected = true
     this._bumps.delete(b4a.toString(publicKey, 'hex'))
     this._runClients(this.clients, (client) => client.unsubscribe(publicKey))
   }
 
+  /**
+   * Announce a key pair to every tracker.
+   * @param {{ publicKey: Buffer, secretKey: Buffer }} keyPair
+   * @param {{ bump?: number }} [opts]
+   */
   announce(keyPair, { bump = Date.now() } = {}) {
     this._connected = true
     this._runClients(this.clients, (client) => client.announce(keyPair, { bump }))
   }
 
+  /** Stop all tracker connections. */
   async suspend() {
     this._suspended = true
     await this._runClientsAsync(this.clients, (client) => client.suspend())
   }
 
+  /** Resume tracker connections that were connected before suspend. */
   resume() {
     this._suspended = false
     this._runClients(this.clients, (client) => client.resume())
