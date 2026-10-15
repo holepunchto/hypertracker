@@ -861,6 +861,100 @@ test('cork nests, so only the outermost uncork flushes', async (t) => {
   t.is(server.stats.onsubscribeCount, 1, 'outer uncork flushes')
 })
 
+test('multi client setKeys replaces the tracker set', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const trackers = await createTrackers(t, bootstrap, 3)
+
+  const dht = new HyperDHT({ bootstrap })
+  t.teardown(() => dht.destroy(), { order: 4000 })
+  await dht.ready()
+
+  const multi = new HyperTrackerMultiClient([trackers[0].publicKey, trackers[2].publicKey], { dht })
+  t.teardown(() => multi.close(), { order: 2000 })
+
+  const [first, second] = multi.clients
+  t.is(multi.clients.length, 2, 'sanity: 2 clients for 2 keys')
+
+  multi.setKeys([trackers[1].publicKey, trackers[0].publicKey])
+  t.is(multi.clients.length, 2, '2 clients for 2 keys')
+  t.is(multi.clients[0], first, 'client[0] stayed as same reference')
+  t.ok(
+    b4a.equals(multi.clients[1].remotePublicKey, trackers[1].publicKey),
+    'client[1] is a new tracker[1]'
+  )
+  t.ok(second.closed || second.closing, 'previously added tracker[2] is now closed')
+})
+
+test('multi client setKeys connects a new tracker only once already connected', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const trackers = await createTrackers(t, bootstrap, 3)
+
+  const dht = new HyperDHT({ bootstrap })
+  t.teardown(() => dht.destroy(), { order: 4000 })
+  await dht.ready()
+
+  const multi = new HyperTrackerMultiClient([trackers[0].publicKey], { dht })
+  t.teardown(() => multi.close(), { order: 2000 })
+
+  let seen = []
+  multi.on('connect', (client) => seen.push(client))
+
+  multi.setKeys([trackers[1].publicKey])
+  await new Promise((resolve) => setTimeout(resolve, 500))
+  t.is(seen.length, 0, 'setKeys before connect() does not try to connect')
+
+  multi.connect()
+  await waitFor(() => seen.length === 1)
+
+  seen = []
+  multi.setKeys([trackers[1].publicKey, trackers[2].publicKey])
+  t.is(multi.clients.length, 2)
+
+  await waitFor(() => seen.length === 1)
+  await new Promise((resolve) => setTimeout(resolve, 500))
+  t.is(seen.length, 1)
+  t.is(seen[0], multi.clients[1], 'only new key emitted connect')
+  t.is(trackers[1].stats.streamsAdded, 1, 'old tracker did not reconnect')
+})
+
+test('multi client setKeys during suspend connects on resume', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const trackers = await createTrackers(t, bootstrap, 3)
+
+  const dht = new HyperDHT({ bootstrap })
+  t.teardown(() => dht.destroy(), { order: 4000 })
+  await dht.ready()
+
+  const multi = new HyperTrackerMultiClient([trackers[0].publicKey], { dht })
+  t.teardown(() => multi.close(), { order: 2000 })
+
+  let seen = []
+  multi.on('connect', (client) => seen.push(client))
+  multi.connect()
+  await waitFor(() => seen.length === 1)
+
+  seen = []
+  await multi.suspend()
+  multi.setKeys([trackers[0].publicKey, trackers[1].publicKey])
+  t.ok(multi.clients[1].suspended, 'new tracker inherits suspend')
+
+  await new Promise((resolve) => setTimeout(resolve, 500))
+  t.is(seen.length, 0, 'no connect event while suspended')
+
+  multi.resume()
+  await waitFor(() => seen.length === 2)
+  t.pass('trackers reconnect after resuming')
+})
+
 async function createTrackers(t, bootstrap, n) {
   const trackers = []
 

@@ -2,20 +2,22 @@ const HyperDHT = require('hyperdht')
 const ReadyResource = require('ready-resource')
 const b4a = require('b4a')
 const HyperTrackerClient = require('./client')
+const { noop } = require('./lib')
 
 class HyperTrackerMultiClient extends ReadyResource {
   constructor(remotePublicKeys, { bootstrap, dht = new HyperDHT({ bootstrap }) } = {}) {
     super()
 
     this.dht = dht
-    this.clients = remotePublicKeys.map((key) => new HyperTrackerClient(key, { dht }))
-
+    this._clients = new Map()
     this._bumps = new Map()
+    this._connected = false
+    this._suspended = false
+    this.setKeys(remotePublicKeys)
+  }
 
-    for (const client of this.clients) {
-      client.on('announce', (bump) => this._onannounce(bump))
-      client.on('connect', () => this.emit('connect', client))
-    }
+  get clients() {
+    return [...this._clients.values()]
   }
 
   _onannounce(bump) {
@@ -28,28 +30,60 @@ class HyperTrackerMultiClient extends ReadyResource {
     this.emit('announce', bump)
   }
 
+  _addClient(key) {
+    if (this._clients.has(key)) return
+
+    const client = new HyperTrackerClient(b4a.from(key, 'hex'), { dht: this.dht })
+    client.on('announce', (bump) => this._onannounce(bump))
+    client.on('connect', () => this.emit('connect', client))
+
+    this._clients.set(key, client)
+
+    if (this._suspended) client.suspend()
+    if (this._connected) client.connect()
+  }
+
+  setKeys(remotePublicKeys) {
+    if (this.closing || this.closed) return
+
+    const newKeys = new Set(remotePublicKeys.map((x) => b4a.toString(x, 'hex')))
+    const oldKeys = new Set(this._clients.keys())
+    const clientToRemove = oldKeys.difference(newKeys)
+    for (const key of newKeys) this._addClient(key)
+    for (const key of clientToRemove) {
+      this._clients.get(key).close().catch(noop)
+      this._clients.delete(key)
+    }
+  }
+
   connect() {
+    this._connected = true
     this._runClients(this.clients, (client) => client.connect())
   }
 
   subscribe(publicKey, opts) {
+    this._connected = true
     this._runClients(this.clients, (client) => client.subscribe(publicKey, opts))
   }
 
   unsubscribe(publicKey) {
+    this._connected = true
     this._bumps.delete(b4a.toString(publicKey, 'hex'))
     this._runClients(this.clients, (client) => client.unsubscribe(publicKey))
   }
 
   announce(keyPair, { bump = Date.now() } = {}) {
+    this._connected = true
     this._runClients(this.clients, (client) => client.announce(keyPair, { bump }))
   }
 
   async suspend() {
+    this._suspended = true
     await this._runClientsAsync(this.clients, (client) => client.suspend())
   }
 
   resume() {
+    this._suspended = false
     this._runClients(this.clients, (client) => client.resume())
   }
 
