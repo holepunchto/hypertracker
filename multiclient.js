@@ -49,9 +49,7 @@ class HyperTrackerMultiClient extends ReadyResource {
     this._clients.set(key, client)
 
     if (this._suspended) client.suspended = true
-    // this is makes it so .resume() automatically reconnects
-    // we do this only if multiclient was connected before so it expects
-    // same state on new keys
+    // this is makes .resume() automatically reconnect new client
     if (this._connected) client._shouldReconnect = true
   }
 
