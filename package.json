@@ -27,6 +27,7 @@
     "hyperschema": "^1.12.1",
     "protomux": "^3.10.1",
     "ready-resource": "^1.1.2",
+    "safety-catch": "^1.0.3",
     "scope-lock": "^1.2.4"
   },
   "repository": {

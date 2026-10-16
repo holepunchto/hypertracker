@@ -17,7 +17,15 @@ const {
 } = require('./lib')
 
 class HyperTrackerClient extends ReadyResource {
-  constructor(remotePublicKey, { bootstrap, dht = new HyperDHT({ bootstrap }) } = {}) {
+  constructor(
+    remotePublicKey,
+    {
+      bootstrap,
+      dht = new HyperDHT({ bootstrap }),
+      suspended = false,
+      shouldReconnect = false
+    } = {}
+  ) {
     super()
 
     this.remotePublicKey = remotePublicKey
@@ -25,12 +33,12 @@ class HyperTrackerClient extends ReadyResource {
     this.connection = null
     this.muxer = null
     this.channel = null
-    this.suspended = false
+    this.suspended = suspended
     this.connecting = false
 
     this._retryTimeout = null
     this._retryResolve = null
-    this._shouldReconnect = false
+    this._shouldReconnect = shouldReconnect
   }
 
   async suspend() {
