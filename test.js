@@ -393,6 +393,9 @@ test('metrics', async (t) => {
   const keyPair = crypto.keyPair()
 
   subscriber.subscribe(keyPair.publicKey)
+  subscriber.subscribe(keyPair.publicKey)
+  await waitFor(() => server.stats.onsubscribeCount === 2)
+
   announcer.announce(keyPair)
   await waitFor(() => server.stats.announces === 1)
 
@@ -406,12 +409,16 @@ test('metrics', async (t) => {
 
   t.ok(metrics.includes('hypertracker_streams_added 2'), 'streams added metric')
   t.ok(metrics.includes('hypertracker_streams_ended 1'), 'streams ended metric')
-  t.ok(metrics.includes('hypertracker_subscriptions_added 1'), 'subscriptions added metric')
+  t.ok(
+    metrics.includes('hypertracker_subscriptions_added 1'),
+    'duplicate subscribe is not counted as added'
+  )
   t.ok(metrics.includes('hypertracker_subscriptions_removed 1'), 'subscriptions removed metric')
+  t.ok(metrics.includes('hypertracker_subscription_keys 0'), 'subscription keys metric')
   t.ok(metrics.includes('hypertracker_announces 1'), 'announces metric')
   t.ok(metrics.includes('hypertracker_announces_sent 1'), 'announces sent metric')
   t.ok(metrics.includes('hypertracker_flush_errors 0'), 'flush errors metric')
-  t.ok(metrics.includes('hypertracker_onsubscribe_count 1'), 'onsubscribe count metric')
+  t.ok(metrics.includes('hypertracker_onsubscribe_count 2'), 'onsubscribe count metric')
   t.ok(metrics.includes('hypertracker_onunsubscribe_count 1'), 'onunsubscribe count metric')
   t.ok(metrics.includes('hypertracker_onannounce_count 1'), 'onannounce count metric')
 })
