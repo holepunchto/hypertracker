@@ -126,15 +126,14 @@ class HyperTracker extends ReadyResource {
       this.subs.set(id, subs)
     }
 
-    this.stats.subscriptionsAdded++
+    if (!subs.has(channel)) this.stats.subscriptionsAdded++
     subs.set(channel, since)
   }
 
   _removeSub(channel, id) {
     const subs = this.subs.get(id)
     if (!subs) return
-    this.stats.subscriptionsRemoved++
-    subs.delete(channel)
+    if (subs.delete(channel)) this.stats.subscriptionsRemoved++
     if (!subs.size) this.subs.delete(id)
   }
 
@@ -278,6 +277,14 @@ class HyperTracker extends ReadyResource {
       help: 'Hypertracker subscriptions removed',
       collect() {
         this.set(tracker.stats.subscriptionsRemoved)
+      }
+    })
+
+    new promClient.Gauge({
+      name: 'hypertracker_subscription_keys',
+      help: 'Hypertracker distinct subscribed keys',
+      collect() {
+        this.set(tracker.subs.size)
       }
     })
 
