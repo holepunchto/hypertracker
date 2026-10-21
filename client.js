@@ -54,6 +54,7 @@ class HyperTrackerClient extends ReadyResource {
   }
 
   resume() {
+    if (!this.suspended) return
     this.suspended = false
     if (this._shouldReconnect && !this.closing) this._reconnect()
   }
