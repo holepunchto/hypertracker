@@ -42,6 +42,7 @@ class HyperTrackerClient extends ReadyResource {
   }
 
   async suspend() {
+    if (this.suspended) return
     this.suspended = true
     this._clearRetry()
     if (!this.connection) return
