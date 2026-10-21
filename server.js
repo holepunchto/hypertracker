@@ -132,8 +132,8 @@ class HyperTracker extends ReadyResource {
 
   _removeSub(channel, id) {
     const subs = this.subs.get(id)
-    if (!subs || !subs.delete(channel)) return
-    this.stats.subscriptionsRemoved++
+    if (!subs) return
+    if (subs.delete(channel)) this.stats.subscriptionsRemoved++
     if (!subs.size) this.subs.delete(id)
   }
 
