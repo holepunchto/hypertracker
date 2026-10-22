@@ -963,6 +963,44 @@ test('multi client setKeys during suspend connects on resume', async (t) => {
   t.pass('trackers reconnect after resuming')
 })
 
+test('resume without suspend keeps the existing connection', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  await serverDht.ready()
+  const clientDht = new HyperDHT({ bootstrap })
+  t.teardown(() => clientDht.destroy(), { order: 4000 })
+  await clientDht.ready()
+
+  const storage = await t.tmp()
+  const server = new HyperTracker(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const client = new HyperTrackerClient(server.publicKey, { dht: clientDht })
+  t.teardown(() => client.close(), { order: 2000 })
+
+  let connects = 0
+  client.on('connect', () => connects++)
+
+  client.connect()
+  await waitFor(() => connects === 1)
+  await waitFor(() => server.stats.streamsAdded === 1)
+
+  const connection = client.connection
+
+  client.resume()
+
+  await new Promise((resolve) => setTimeout(resolve, 500))
+
+  t.ok(client.connection === connection, 'client kept its connection')
+  t.is(connects, 1, 'no extra connect event')
+  t.is(server.stats.streamsAdded, 1, 'tracker did not get a new stream')
+})
+
 async function createTrackers(t, bootstrap, n) {
   const trackers = []
 
