@@ -39,6 +39,7 @@ class HyperTrackerClient extends ReadyResource {
     this._retryTimeout = null
     this._retryResolve = null
     this._shouldReconnect = shouldReconnect
+    this._pendingAnnounces = new Map()
   }
 
   async suspend() {
@@ -88,16 +89,7 @@ class HyperTrackerClient extends ReadyResource {
       if (!this.channel) break
       this.channel.open()
 
-      await new Promise((resolve) => {
-        connection.on('connect', done)
-        connection.on('error', done)
-
-        function done() {
-          connection.off('connect', done)
-          connection.off('error', done)
-          resolve()
-        }
-      })
+      const opened = await this.channel.fullyOpened()
 
       if (this.closing || this.suspended) {
         connection.on('error', noop)
@@ -105,8 +97,16 @@ class HyperTrackerClient extends ReadyResource {
         break
       }
 
-      if (!connection.destroyed && !connection.destroying) {
+      if (opened && !connection.destroyed && !connection.destroying) {
         connection.on('close', this._reconnect.bind(this))
+
+        if (this._pendingAnnounces.size) {
+          this.channel.cork()
+          for (const m of this._pendingAnnounces.values()) this.channel.messages[2].send(m)
+          this.channel.uncork()
+          this._pendingAnnounces.clear()
+        }
+
         break
       }
 
@@ -196,7 +196,14 @@ class HyperTrackerClient extends ReadyResource {
     const signature = crypto.sign(state.buffer, keyPair.secretKey)
     const m = { publicKey: keyPair.publicKey, announce: ann, signature }
 
-    channel.messages[2].send(m)
+    if (!this.connecting && !this.connection.destroying) {
+      channel.messages[2].send(m)
+      return
+    }
+
+    const id = b4a.toString(keyPair.publicKey, 'hex')
+    const pending = this._pendingAnnounces.get(id)
+    if (!pending || pending.announce.bump < bump) this._pendingAnnounces.set(id, m)
   }
 }
 

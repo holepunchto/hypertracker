@@ -1001,6 +1001,36 @@ test('resume without suspend keeps the existing connection', async (t) => {
   t.is(server.stats.streamsAdded, 1, 'tracker did not get a new stream')
 })
 
+test('client should not lose announce on reconnect', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+
+  const storage = await t.tmp()
+  const server = new HyperTracker(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const announcer = new HyperTrackerClient(server.publicKey, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+
+  announcer.connect()
+  await new Promise((resolve) => announcer.once('connect', resolve))
+
+  const keyPair = crypto.keyPair()
+
+  announcer.connection.destroy()
+  announcer.announce(keyPair)
+
+  const record = await waitForRecord(server, keyPair.publicKey)
+  t.ok(record, 'announce reaches the tracker after the client reconnects')
+})
+
 async function createTrackers(t, bootstrap, n) {
   const trackers = []
 
