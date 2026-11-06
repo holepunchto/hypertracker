@@ -1065,6 +1065,127 @@ test('rejected channel does not pile up connections', async (t) => {
   t.is(maxOpen, 1, 'never more than one connection open')
 })
 
+test('suspend and resume while connecting keeps a single connection', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  await serverDht.ready()
+  const clientDht = new HyperDHT({ bootstrap })
+  t.teardown(() => clientDht.destroy(), { order: 4000 })
+  await clientDht.ready()
+
+  const storage = await t.tmp()
+  const server = new HyperTracker(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const client = new HyperTrackerClient(server.publicKey, { dht: clientDht })
+  t.teardown(() => client.close(), { order: 2000 })
+
+  let connects = 0
+  client.on('connect', () => connects++)
+
+  client.connect()
+  client.suspend()
+  client.resume()
+
+  await waitFor(() => connects > 0)
+  const connection = client.connection
+
+  await new Promise((resolve) => setTimeout(resolve, 6000))
+
+  t.ok(client.connection === connection, 'client kept its connection')
+  t.is(connects, 1, 'no extra connect event')
+  t.is(server.stats.streamsAdded, 1, 'tracker did not get a new stream')
+})
+
+test('suspend and resume during retry backoff keeps a single connection', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  await serverDht.ready()
+  const clientDht = new HyperDHT({ bootstrap })
+  t.teardown(() => clientDht.destroy(), { order: 4000 })
+  await clientDht.ready()
+
+  const storage = await t.tmp()
+  const server = new HyperTracker(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const client = new HyperTrackerClient(server.publicKey, { dht: clientDht })
+  t.teardown(() => client.close(), { order: 2000 })
+
+  let connects = 0
+  client.on('connect', () => connects++)
+
+  client.connect()
+  const failed = client.connection
+  failed.destroy()
+  await new Promise((resolve) => failed.once('close', resolve))
+
+  client.suspend()
+  client.resume()
+
+  await waitFor(() => connects > 0)
+  await new Promise((resolve) => setTimeout(resolve, 1000))
+
+  t.is(connects, 1, 'no extra connect event')
+  t.is(server.stats.streamsAdded, 1, 'tracker got a single stream')
+})
+
+test('announce bad data while reconnecting throws and leaves the client working', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  await serverDht.ready()
+  const announcerDht = new HyperDHT({ bootstrap })
+  t.teardown(() => announcerDht.destroy(), { order: 4000 })
+  await announcerDht.ready()
+
+  const storage = await t.tmp()
+  const server = new HyperTracker(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const announcer = new HyperTrackerClient(server.publicKey, { dht: announcerDht })
+  t.teardown(() => announcer.close(), { order: 2000 })
+
+  const unhandled = []
+  const onUnhandled = (err) => unhandled.push(err)
+  process.on('unhandledRejection', onUnhandled)
+  t.teardown(() => process.off('unhandledRejection', onUnhandled))
+
+  let connects = 0
+  announcer.on('connect', () => connects++)
+  announcer.connect()
+  await waitFor(() => connects === 1)
+
+  const keyPair = crypto.keyPair()
+  const badData = { publicKey: b4a.alloc(64), secretKey: keyPair.secretKey }
+
+  announcer.connection.destroy()
+  t.exception(() => announcer.announce(badData), 'announce bad data throws to the caller')
+  await t.execution(
+    waitFor(() => connects === 2),
+    'client reconnects'
+  )
+
+  announcer.announce(keyPair)
+  const record = await waitForRecord(server, keyPair.publicKey)
+  t.ok(record, 'announce after the reconnect reaches the tracker')
+  t.is(unhandled.length, 0, 'no unhandled rejections')
+})
+
 async function createTrackers(t, bootstrap, n) {
   const trackers = []
 
