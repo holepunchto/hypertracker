@@ -1002,7 +1002,7 @@ test('resume without suspend keeps the existing connection', async (t) => {
   t.is(server.stats.streamsAdded, 1, 'tracker did not get a new stream')
 })
 
-test.solo('rejected channel does not pile up connections', async (t) => {
+test('rejected channel does not pile up connections', async (t) => {
   const testnet = await setupTestnet()
   const { bootstrap } = testnet
   t.teardown(() => testnet.destroy(), { order: 5000 })
