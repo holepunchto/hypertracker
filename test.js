@@ -1065,6 +1065,81 @@ test('rejected channel does not pile up connections', async (t) => {
   t.is(maxOpen, 1, 'never more than one connection open')
 })
 
+test('suspend and resume while connecting keeps a single connection', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  await serverDht.ready()
+  const clientDht = new HyperDHT({ bootstrap })
+  t.teardown(() => clientDht.destroy(), { order: 4000 })
+  await clientDht.ready()
+
+  const storage = await t.tmp()
+  const server = new HyperTracker(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const client = new HyperTrackerClient(server.publicKey, { dht: clientDht })
+  t.teardown(() => client.close(), { order: 2000 })
+
+  let connects = 0
+  client.on('connect', () => connects++)
+
+  client.connect()
+  client.suspend()
+  client.resume()
+
+  await waitFor(() => connects > 0)
+  const connection = client.connection
+
+  await new Promise((resolve) => setTimeout(resolve, 6000))
+
+  t.ok(client.connection === connection, 'client kept its connection')
+  t.is(connects, 1, 'no extra connect event')
+  t.is(server.stats.streamsAdded, 1, 'tracker did not get a new stream')
+})
+
+test('suspend and resume during retry backoff keeps a single connection', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  await serverDht.ready()
+  const clientDht = new HyperDHT({ bootstrap })
+  t.teardown(() => clientDht.destroy(), { order: 4000 })
+  await clientDht.ready()
+
+  const storage = await t.tmp()
+  const server = new HyperTracker(storage, { dht: serverDht })
+  t.teardown(() => server.close(), { order: 3000 })
+  await server.ready()
+
+  const client = new HyperTrackerClient(server.publicKey, { dht: clientDht })
+  t.teardown(() => client.close(), { order: 2000 })
+
+  let connects = 0
+  client.on('connect', () => connects++)
+
+  client.connect()
+  const failed = client.connection
+  failed.destroy()
+  await new Promise((resolve) => failed.once('close', resolve))
+
+  client.suspend()
+  client.resume()
+
+  await waitFor(() => connects > 0)
+  await new Promise((resolve) => setTimeout(resolve, 1000))
+
+  t.is(connects, 1, 'no extra connect event')
+  t.is(server.stats.streamsAdded, 1, 'tracker got a single stream')
+})
+
 async function createTrackers(t, bootstrap, n) {
   const trackers = []
 

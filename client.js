@@ -90,6 +90,7 @@ class HyperTrackerClient extends ReadyResource {
       this.channel.open()
 
       const opened = await this.channel.fullyOpened()
+      if (this.connection !== connection) return this.channel
 
       if (this.closing || this.suspended) {
         connection.on('error', noop)
@@ -118,6 +119,7 @@ class HyperTrackerClient extends ReadyResource {
         this._retryResolve = resolve
         this._retryTimeout = setTimeout(resolve, strikes < 3 ? 5_000 : 15_000)
       })
+      if (this.connection !== connection) return this.channel
 
       this._retryResolve = null
       this._retryTimeout = null
