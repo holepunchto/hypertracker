@@ -110,6 +110,8 @@ class HyperTrackerClient extends ReadyResource {
         break
       }
 
+      connection.on('error', noop)
+      connection.destroy()
       strikes++
 
       await new Promise((resolve) => {

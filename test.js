@@ -5,6 +5,7 @@ const setupTestnet = require('hyperdht/testnet')
 const promClient = require('prom-client')
 const c = require('compact-encoding')
 const b4a = require('b4a')
+const Protomux = require('protomux')
 const process = require('process')
 
 const { getEncoding } = require('./spec/hyperschema')
@@ -1029,6 +1030,39 @@ test('client should not lose announce on reconnect', async (t) => {
 
   const record = await waitForRecord(server, keyPair.publicKey)
   t.ok(record, 'announce reaches the tracker after the client reconnects')
+})
+
+test('rejected channel does not pile up connections', async (t) => {
+  const testnet = await setupTestnet()
+  const { bootstrap } = testnet
+  t.teardown(() => testnet.destroy(), { order: 5000 })
+
+  const serverDht = new HyperDHT({ bootstrap })
+  t.teardown(() => serverDht.destroy(), { order: 4000 })
+  await serverDht.ready()
+  const clientDht = new HyperDHT({ bootstrap })
+  t.teardown(() => clientDht.destroy(), { order: 4000 })
+  await clientDht.ready()
+
+  let open = 0
+  let maxOpen = 0
+
+  const server = serverDht.createServer((connection) => {
+    maxOpen = Math.max(maxOpen, ++open)
+    connection.on('close', () => open--)
+    Protomux.from(connection)
+  })
+  t.teardown(() => server.close(), { order: 3000 })
+  const keyPair = crypto.keyPair()
+  await server.listen(keyPair)
+
+  const client = new HyperTrackerClient(keyPair.publicKey, { dht: clientDht })
+  t.teardown(() => client.close(), { order: 2000 })
+
+  client.connect()
+  await new Promise((resolve) => setTimeout(resolve, 7000))
+
+  t.is(maxOpen, 1, 'never more than one connection open')
 })
 
 async function createTrackers(t, bootstrap, n) {
