@@ -1032,7 +1032,6 @@ test('client should not lose announce on reconnect', async (t) => {
   t.ok(record, 'announce reaches the tracker after the client reconnects')
 })
 
-
 test('rejected channel does not pile up connections', async (t) => {
   const testnet = await setupTestnet()
   const { bootstrap } = testnet
