@@ -54,17 +54,17 @@ class HyperTrackerClient extends ReadyResource {
   }
 
   resume() {
-    if (!this.suspended) return
     this.suspended = false
-    if (this._shouldReconnect && !this.closing) this._reconnect()
+    if (this._shouldReconnect) this._reconnect()
   }
 
   connect() {
-    if (!this.channel) this._reconnect()
+    this._reconnect()
   }
 
   async _reconnect() {
     if (this.connecting) return this.channel
+    if (this.channel && this.channel.opened && !this.connection.destroying) return this.channel
     this.connecting = true
     this._shouldReconnect = true
 
@@ -98,9 +98,7 @@ class HyperTrackerClient extends ReadyResource {
       }
 
       if (opened && !connection.destroyed && !connection.destroying) {
-        connection.on('close', () => {
-          if (this.connection === connection) this._reconnect()
-        })
+        connection.on('close', this._reconnect.bind(this))
 
         if (this._pendingAnnounces.size) {
           this.channel.cork()
@@ -152,7 +150,7 @@ class HyperTrackerClient extends ReadyResource {
   }
 
   _getChannel() {
-    if (!this.channel) this._reconnect()
+    this._reconnect()
     if (this.suspended || this.closing) return null
     return this.channel
   }
