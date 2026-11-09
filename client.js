@@ -39,39 +39,39 @@ class HyperTrackerClient extends ReadyResource {
     this._retryTimeout = null
     this._retryResolve = null
     this._shouldReconnect = shouldReconnect
+    this._interrupted = false
     this._pendingAnnounces = new Map()
   }
 
   async suspend() {
     this.suspended = true
+    this._interrupted = true
     this._clearRetry()
     if (!this.connection) return
     this.connection.destroy()
-    this.connecting = null
-    this.channel = null
-    this.muxer = null
     if (this.connection.destroyed) return
     await new Promise((resolve) => this.connection.on('close', resolve))
   }
 
   resume() {
-    if (!this.suspended) return
     this.suspended = false
-    if (this._shouldReconnect && !this.closing) this._reconnect()
+    if (this._shouldReconnect) this._reconnect()
   }
 
   connect() {
-    if (!this.channel) this._reconnect()
+    this._reconnect()
   }
 
   async _reconnect() {
     if (this.connecting) return this.channel
+    if (this.channel && this.channel.opened && !this.connection.destroying) return this.channel
     this.connecting = true
     this._shouldReconnect = true
 
     let strikes = 0
 
     while (!this.closing && !this.suspended) {
+      this._interrupted = false
       const connection = (this.connection = this.dht.connect(this.remotePublicKey))
 
       this.muxer = getMuxer(this.connection)
@@ -109,6 +109,8 @@ class HyperTrackerClient extends ReadyResource {
 
         break
       }
+
+      if (this._interrupted) continue
 
       connection.on('error', noop)
       connection.destroy()
@@ -148,8 +150,8 @@ class HyperTrackerClient extends ReadyResource {
   }
 
   _getChannel() {
-    if (this.channel) return this.channel
     this._reconnect()
+    if (this.suspended || this.closing) return null
     return this.channel
   }
 
@@ -203,7 +205,10 @@ class HyperTrackerClient extends ReadyResource {
       return
     }
 
-    const id = b4a.toString(keyPair.publicKey, 'hex')
+    c.encode(Announce, m)
+    m.publicKey = b4a.from(m.publicKey)
+
+    const id = b4a.toString(m.publicKey, 'hex')
     const pending = this._pendingAnnounces.get(id)
     if (!pending || pending.announce.bump < bump) this._pendingAnnounces.set(id, m)
   }
